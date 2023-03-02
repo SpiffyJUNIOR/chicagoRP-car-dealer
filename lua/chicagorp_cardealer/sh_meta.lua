@@ -1,0 +1,1 @@
+chicagoRPCarDealer = chicagoRPCarDealer or {}
