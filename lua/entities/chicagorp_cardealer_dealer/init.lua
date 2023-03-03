@@ -25,8 +25,7 @@ function ENT:AcceptInput(key, ply)
 
             -- self:EmitSound("chicagorp_npcshop/voiceline".. math.random(1, 8) ..".ogg", 60, 100, 1, CHAN_VOICE)
 
-            net.Start("chicagoRP_NPCShop_GUI")
-            net.WriteBool(true)
+            net.Start("chicagoRP_cardealer_dealerUI")
             net.Send(ply)
         end
     end

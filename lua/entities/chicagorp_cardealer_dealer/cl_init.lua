@@ -18,8 +18,10 @@ function ENT:Draw()
 	ahAngle:RotateAroundAxis(ahAngle:Forward(), 90)
 	ahAngle:RotateAroundAxis(ahAngle:Right(), -90)
 
+	whitecolor.a = main
+
 	cam.Start3D2D(self:GetPos() + self:GetUp() * 80, Angle(0, plyEyeAng.y - 90, 90), 0.175)
 		-- surface.SetDrawColor(Color(whitecolor.x, whitecolor.y, whitecolor.z, main))
-		draw.SimpleTextOutlined(text, "chicagoRP_NPCShop", 0, 13, Color(whitecolor.x, whitecolor.y, whitecolor.z, main), 1, 0, 1, Color(25, 25, 25, main))
+		draw.SimpleTextOutlined(text, "Default", 0, 13, whitecolor, 1, 0, 1, Color(25, 25, 25, main))
 	cam.End3D2D()
 end

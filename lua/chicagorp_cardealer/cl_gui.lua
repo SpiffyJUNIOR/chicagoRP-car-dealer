@@ -2,6 +2,7 @@ local function OpenBrowseUI(manu)
 	dmodelpanel
 	dpnael for stats
 	dpanel for playerstats
+	horizontalscrollpanel for car buttons
 
 	dstatpanel:performlayout
 		dstatpanel.car:getstats()

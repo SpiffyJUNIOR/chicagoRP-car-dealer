@@ -1,6 +1,6 @@
 ENT.Base = "base_ai"
 ENT.Type = "ai"
-ENT.PrintName = "All Around Shop"
+ENT.PrintName = "Car Dealer"
 ENT.Author = "SpiffyJUNIOR"
 ENT.Category = "chicagoRP"
 ENT.Spawnable = true
@@ -8,7 +8,7 @@ ENT.AdminOnly = true
 ENT.AutomaticFrameAdvance = true
 
 function ENT:GetPrintName()
-	return SWEP.PrintName
+	return self.PrintName
 end
 
 function ENT:Think()
