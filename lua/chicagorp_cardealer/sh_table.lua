@@ -1,7 +1,7 @@
 chicagoRPCarDealer = chicagoRPCarDealer or {}
 
 chicagoRPCarDealer.Manufacturers = chicagoRPCarDealer.Manufacturers or {}
-chicagoRPCarDealer.Cars = chicagoRPCarDealer.Cars or {}
+chicagoRPCarDealer.Vehicles = chicagoRPCarDealer.Vehicles or {}
 
 chicagoRPCarDealer.Manufacturers_HashTable = chicagoRPCarDealer.Manufacturers_HashTable or {}
-chicagoRPCarDealer.Cars_HashTable = chicagoRPCarDealer.Cars_HashTable or {}
+chicagoRPCarDealer.Vehicles_HashTable = chicagoRPCarDealer.Vehicles_HashTable or {}
