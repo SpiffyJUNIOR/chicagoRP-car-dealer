@@ -1,5 +1,7 @@
+local ENTITY = FindMetaTable("Entity")
+
 ---------------------------------
--- chicagoRPCarDealer.SetVehicleOwner
+-- ENTITY:SetVehicleOwner
 ---------------------------------
 -- Desc:		Gets a vehicle's owner.
 -- State:		Server
