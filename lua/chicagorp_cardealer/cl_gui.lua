@@ -1,4 +1,5 @@
 local OpenModelPanel = nil
+local vehiclewheels = {}
 local cubemapmats = {}
 local lerpStart = 0
 local lerpTime = 0
@@ -50,6 +51,50 @@ local function SetCameraAng(ang)
 	end
 end
 
+local function CreateCSWheel(vehiclename, ent, index, attachmentpos, height, swap_y)
+	-- ent.VehicleData (gmod_sent_vehicle_fphysics_base/spawn.lua#L345)
+	-- wheel height (simulate suspension basically, gmod_sent_vehicle_fphysics_base/spawn.lua#L345)
+	if !IsValid(ent) then return end
+
+	local spawnlist = list.Get("simfphys_vehicles")
+	local simfphystbl = spawnlist[vehiclename]
+    local fAng = ent:LocalToWorldAngles(ent.VehicleData.LocalAngForward)
+    local rAng = ent:LocalToWorldAngles(ent.VehicleData.LocalAngRight)
+    local forward = fAng:Forward()
+    local right = swap_y and -rAng:Forward() or rAng:Forward()
+    local up = ent:GetUp()
+
+    local csWheel = ClientsideModel("models/props_vehicles/tire001c_car.mdl", RENDERGROUP_BOTH)
+    csWheel:SetPos(attachmentpos - up * height)
+    csWheel:SetAngles(fAng)
+    csWheel:SetParent(ent)
+
+    if simfphystbl.CustomWheels then
+        local model = (simfphystbl.CustomWheelModel_R and (index == 3 or index == 4 or index == 5 or index == 6)) and simfphystbl.CustomWheelModel_R or simfphystbl.CustomWheelModel
+        local ghostAng = right:Angle()
+        local mirAng = swap_y and 1 or -1
+        ghostAng:RotateAroundAxis(forward, simfphystbl.CustomWheelAngleOffset.p * mirAng)
+        ghostAng:RotateAroundAxis(right, simfphystbl.CustomWheelAngleOffset.r * mirAng)
+        ghostAng:RotateAroundAxis(up, -simfphystbl.CustomWheelAngleOffset.y)
+        local Camber = simfphystbl.CustomWheelCamber or 0
+        ghostAng:RotateAroundAxis(forward, Camber * mirAng)
+        local csCustomWheel = ents.Create("gmod_sent_vehicle_fphysics_attachment")
+        csCustomWheel:SetModel(model)
+        csCustomWheel:SetPos(csWheel:GetPos())
+        csCustomWheel:SetAngles(ghostAng)
+        csCustomWheel:SetParent(ent)
+        csCustomWheel:SetRenderMode(RENDERMODE_TRANSALPHA)
+
+        if simfphystbl.ModelInfo then
+            if simfphystbl.ModelInfo.WheelColor then
+                GhostWheel:SetColor(simfphystbl.ModelInfo.WheelColor)
+            end
+        end
+
+        csWheel:Remove()
+    end
+end
+
 local function FancyModelPanel(parent, model, x, y, w, h)
 	-- create wheel cs models
 	-- create exhaust particles if possible
@@ -76,6 +121,11 @@ local function FancyModelPanel(parent, model, x, y, w, h)
 
     local oldCamPos = modelPanel:GetCamPos()
     local oldCamAng = modelPanel:GetLookAng()
+
+    self:CreateWheel(1, WheelFL, self:GetAttachment(self:LookupAttachment("wheel_fl")).Pos, self.FrontHeight, self.FrontWheelRadius, false, self.posepositions.Pose1_Pos_FL, self.VehicleData.suspensiontravel_fl, self.FrontConstant, self.FrontDamping, self.FrontRelativeDamping)
+    self:CreateWheel(2, WheelFR, self:GetAttachment(self:LookupAttachment("wheel_fr")).Pos, self.FrontHeight, self.FrontWheelRadius, true, self.posepositions.Pose1_Pos_FR, self.VehicleData.suspensiontravel_fr, self.FrontConstant, self.FrontDamping, self.FrontRelativeDamping)
+    self:CreateWheel(3, WheelRL, self:GetAttachment(self:LookupAttachment("wheel_rl")).Pos, self.RearHeight, self.RearWheelRadius, false, self.posepositions.Pose1_Pos_RL, self.VehicleData.suspensiontravel_rl, self.RearConstant, self.RearDamping, self.RearRelativeDamping)
+    self:CreateWheel(4, WheelRR, self:GetAttachment(self:LookupAttachment("wheel_rr")).Pos, self.RearHeight, self.RearWheelRadius, true, self.posepositions.Pose1_Pos_RR, self.VehicleData.suspensiontravel_rr, self.RearConstant, self.RearDamping, self.RearRelativeDamping)
 
     function modelPanel:LayoutEntity(ent) return end -- how do we make cam movement smoothened?
 
@@ -181,3 +231,6 @@ local function OpenDealerUI()
 		end
 	end
 end
+
+-- upgrade calc needs to be serverside i think (apply upgrades temporarily and then reset to original stats on exit)
+-- we need to find a way to make this unexploitable (reset on exiting vehicle, reset on closing UI, create setupmove hook to reset stats once player position has changed a fair bit then remove hook)
