@@ -112,7 +112,7 @@ function chicagoRPCarDealer.AddUpgrade(tbl)
 	local carindex = hashtable[tbl.vehicle].index
 	local slotindex = hashtable[tbl.vehicle].upgradeslots[tbl.slot].index
 
-	table.insert(seqtable[tbl.].upgradeslots[slotindex], tbl)
+	table.insert(seqtable[tbl.vehicle].upgradeslots[slotindex], tbl)
 	hashtable[tbl.vehicle].upgradeslots[tbl.slot][tbl.upgradename] = tbl
 	hashtable[tbl.vehicle].upgradeslots[tbl.slot][tbl.upgradename].index = #hashtable.upgradeslots[tbl.slot] + 1
 end

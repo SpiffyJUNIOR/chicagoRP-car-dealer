@@ -5,6 +5,41 @@ local lerpStart = 0
 local lerpTime = 0
 local defaultCamPos = Vector(50, 50, 50)
 local defaultCamAng = Angle(0, 0, 40)
+local rightangle = Angle(0, 90, 0)
+
+local simfphyswheelatts = {
+	[1] = "wheel_fl",
+	[2] = "wheel_fr",
+	[3] = "wheel_rl",
+	[4] = "wheel_rr"
+}
+
+local simfphyswheelpos = {
+	[1] = "CustomWheelPosFL",
+	[2] = "CustomWheelPosFR",
+	[3] = "CustomWheelPosRL",
+	[4] = "CustomWheelPosRR",
+	[5] = "CustomWheelPosML",
+	[6] = "CustomWheelPosMR",
+}
+
+local simfphyswheelheight = {
+	[1] = "FrontHeight",
+	[2] = "FrontHeight",
+	[3] = "RearHeight",
+	[4] = "RearHeight",
+	[5] = "RearHeight",
+	[6] = "RearHeight",
+}
+
+local simfphyswheelbools = {
+	[1] = false,
+	[2] = true,
+	[3] = false,
+	[4] = true,
+	[5] = false,
+	[6] = true,
+}
 
 local function SetStaticCubemap(ent)
 	if !IsValid(ent) then return end
@@ -39,6 +74,14 @@ local function GarbageCollectMats()
 	end
 end
 
+local function GarbageCollectCSEnts(tbl)
+	if !istable(tbl) or table.IsEmpty(tbl) then return end
+
+	for i = 1, #tbl do
+		tbl[i]:Remove()
+	end
+end
+
 local function SetCameraPos(pos)
 	if IsValid(OpenModelPanel) then
 		OpenModelPanel:SetCamPos(pos)
@@ -51,15 +94,78 @@ local function SetCameraAng(ang)
 	end
 end
 
-local function CreateCSWheel(vehiclename, ent, index, attachmentpos, height, swap_y)
-	-- ent.VehicleData (gmod_sent_vehicle_fphysics_base/spawn.lua#L345)
-	-- wheel height (simulate suspension basically, gmod_sent_vehicle_fphysics_base/spawn.lua#L345)
+local function BodyGroupIsValid(bodygroups, entity)
+    for i = 1, #bodygroups do
+        local mygroup = entity:GetBodygroup(i)
+
+        for g_index = 1, table.Count(bodygroups[i]) do
+            if mygroup == bodygroups[i][g_index] then return true end
+        end
+    end
+
+    return false
+end
+
+local function ExhaustEffect(ent, simfphystbl, fThrottle, IdleRPM, LimitRPM)
+    if !simfphystbl.ExhaustPositions then return end
+    local scale = fThrottle * (0.2 + math.min(IdleRPM / LimitRPM, 1) * 0.8)^2
+
+    for i = 1, table.Count(simfphystbl.ExhaustPositions) do
+        if simfphystbl.ExhaustPositions[i].OnBodyGroups then
+            if BodyGroupIsValid(simfphystbl.ExhaustPositions[i].OnBodyGroups, ent) then
+                local effectdata = EffectData()
+                effectdata:SetOrigin(simfphystbl.ExhaustPositions[i].pos)
+                effectdata:SetAngles(simfphystbl.ExhaustPositions[i].ang)
+                effectdata:SetMagnitude(scale)
+                effectdata:SetEntity(ent)
+                util.Effect("simfphys_exhaust", effectdata)
+            end
+        else
+            local effectdata = EffectData()
+            effectdata:SetOrigin(simfphystbl.ExhaustPositions[i].pos)
+            effectdata:SetAngles(simfphystbl.ExhaustPositions[i].ang)
+            effectdata:SetMagnitude(scale)
+            effectdata:SetEntity(ent)
+            util.Effect("simfphys_exhaust", effectdata)
+        end
+    end
+end
+
+local function GetForwardYaw(simfphystbl, ent)
 	if !IsValid(ent) then return end
 
-	local spawnlist = list.Get("simfphys_vehicles")
-	local simfphystbl = spawnlist[vehiclename]
-    local fAng = ent:LocalToWorldAngles(ent.VehicleData.LocalAngForward)
-    local rAng = ent:LocalToWorldAngles(ent.VehicleData.LocalAngRight)
+    ent.posepositions["Pose0_Pos_FL"] = simfphystbl.CustomWheels and ent:LocalToWorld(simfphystbl.CustomWheelPosFL) or ent:GetAttachment(ent:LookupAttachment("wheel_fl")).Pos
+    ent.posepositions["Pose0_Pos_FR"] = simfphystbl.CustomWheels and ent:LocalToWorld(simfphystbl.CustomWheelPosFR) or ent:GetAttachment(ent:LookupAttachment("wheel_fr")).Pos
+    ent.posepositions["Pose0_Pos_RL"] = simfphystbl.CustomWheels and ent:LocalToWorld(simfphystbl.CustomWheelPosRL) or ent:GetAttachment(ent:LookupAttachment("wheel_rl")).Pos
+    ent.posepositions["Pose0_Pos_RR"] = simfphystbl.CustomWheels and ent:LocalToWorld(simfphystbl.CustomWheelPosRR) or ent:GetAttachment(ent:LookupAttachment("wheel_rr")).Pos
+    ent.posepositions["Pose1_Pos_FL"] = simfphystbl.CustomWheels and ent:LocalToWorld(simfphystbl.CustomWheelPosFL) or ent:GetAttachment(ent:LookupAttachment("wheel_fl")).Pos
+    ent.posepositions["Pose1_Pos_FR"] = simfphystbl.CustomWheels and ent:LocalToWorld(simfphystbl.CustomWheelPosFR) or ent:GetAttachment(ent:LookupAttachment("wheel_fr")).Pos
+    ent.posepositions["Pose1_Pos_RL"] = simfphystbl.CustomWheels and ent:LocalToWorld(simfphystbl.CustomWheelPosRL) or ent:GetAttachment(ent:LookupAttachment("wheel_rl")).Pos
+    ent.posepositions["Pose1_Pos_RR"] = simfphystbl.CustomWheels and ent:LocalToWorld(simfphystbl.CustomWheelPosRR) or ent:GetAttachment(ent:LookupAttachment("wheel_rr")).Pos
+    ent.posepositions["PoseL_Pos_FL"] = ent:WorldToLocal(ent.posepositions.Pose1_Pos_FL)
+    ent.posepositions["PoseL_Pos_FR"] = ent:WorldToLocal(ent.posepositions.Pose1_Pos_FR)
+    ent.posepositions["PoseL_Pos_RL"] = ent:WorldToLocal(ent.posepositions.Pose1_Pos_RL)
+    ent.posepositions["PoseL_Pos_RR"] = ent:WorldToLocal(ent.posepositions.Pose1_Pos_RR)
+    ent.VehicleData["suspensiontravel_fl"] = simfphystbl.CustomWheels and simfphystbl.FrontHeight or math.Round((ent.posepositions.Pose0_Pos_FL - ent.posepositions.Pose1_Pos_FL):LengthSqr(), 2) -- originally Length()
+    ent.VehicleData["suspensiontravel_fr"] = simfphystbl.CustomWheels and simfphystbl.FrontHeight or math.Round((ent.posepositions.Pose0_Pos_FR - ent.posepositions.Pose1_Pos_FR):LengthSqr(), 2)
+    ent.VehicleData["suspensiontravel_rl"] = simfphystbl.CustomWheels and simfphystbl.RearHeight or math.Round((ent.posepositions.Pose0_Pos_RL - ent.posepositions.Pose1_Pos_RL):LengthSqr(), 2)
+    ent.VehicleData["suspensiontravel_rr"] = simfphystbl.CustomWheels and simfphystbl.RearHeight or math.Round((ent.posepositions.Pose0_Pos_RR - ent.posepositions.Pose1_Pos_RR):LengthSqr(), 2)
+    local pFL = ent.posepositions.Pose0_Pos_FL
+    local pFR = ent.posepositions.Pose0_Pos_FR
+    local pRL = ent.posepositions.Pose0_Pos_RL
+    local pRR = ent.posepositions.Pose0_Pos_RR
+    local pAngL = ent:WorldToLocalAngles(((pFL + pFR) / 2 - (pRL + pRR) / 2):Angle())
+
+    return pAngL.y
+end
+
+local function CreateCSWheel(simfphystbl, ent, index, attachmentpos, height, swap_y)
+	if !IsValid(ent) then return end
+
+	local LocalAngForward = angle_zero
+	LocalAngForward.y = GetForwardYaw(simfphystbl, ent)
+    local fAng = ent:LocalToWorldAngles(LocalAngForward)
+    local rAng = ent:LocalToWorldAngles(LocalAngForward:Sub(rightangle))
     local forward = fAng:Forward()
     local right = swap_y and -rAng:Forward() or rAng:Forward()
     local up = ent:GetUp()
@@ -95,12 +201,11 @@ local function CreateCSWheel(vehiclename, ent, index, attachmentpos, height, swa
     end
 end
 
-local function FancyModelPanel(parent, model, x, y, w, h)
-	-- create wheel cs models
-	-- create exhaust particles if possible
-	-- create light entities if possible
+local function FancyModelPanel(parent, simfphystbl, x, y, w, h)
     if lightcolor == nil then lightcolor = whitecolor end
     if model == nil or parent == nil then return end
+
+    local CSents = {}
 
     local parentPanel = vgui.Create("DPanel", parent)
     parentPanel:SetSize(w, h)
@@ -113,33 +218,41 @@ local function FancyModelPanel(parent, model, x, y, w, h)
     local modelPanel = vgui.Create("DModelPanel", parentPanel)
     modelPanel:SetSize(w, h)
     modelPanel:SetPos(x, y)
-    modelPanel:SetModel(model)
-    modelPanel:SetAmbientLight(whitecolor) -- main light up top (typically slightly yellow), fill light below camera (very faint pale blue), rim light to the left (urban color), rimlight to the right (white)
-    modelPanel:SetDirectionalLight(BOX_TOP, slightyellowcolor)
-    modelPanel:SetDirectionalLight(BOX_FRONT, slightbluecolor)
-    modelPanel:SetDirectionalLight(BOX_LEFT, lightcolor)
+    modelPanel:SetModel(simfphystbl.Model)
+    -- modelPanel:SetAmbientLight(color_white) -- main light up top (typically slightly yellow), fill light below camera (very faint pale blue), rim light to the left (urban color), rimlight to the right (white)
+    -- modelPanel:SetDirectionalLight(BOX_TOP, slightyellowcolor)
+    -- modelPanel:SetDirectionalLight(BOX_FRONT, slightbluecolor)
+    -- modelPanel:SetDirectionalLight(BOX_LEFT, lightcolor)
 
     local oldCamPos = modelPanel:GetCamPos()
     local oldCamAng = modelPanel:GetLookAng()
 
-    self:CreateWheel(1, WheelFL, self:GetAttachment(self:LookupAttachment("wheel_fl")).Pos, self.FrontHeight, self.FrontWheelRadius, false, self.posepositions.Pose1_Pos_FL, self.VehicleData.suspensiontravel_fl, self.FrontConstant, self.FrontDamping, self.FrontRelativeDamping)
-    self:CreateWheel(2, WheelFR, self:GetAttachment(self:LookupAttachment("wheel_fr")).Pos, self.FrontHeight, self.FrontWheelRadius, true, self.posepositions.Pose1_Pos_FR, self.VehicleData.suspensiontravel_fr, self.FrontConstant, self.FrontDamping, self.FrontRelativeDamping)
-    self:CreateWheel(3, WheelRL, self:GetAttachment(self:LookupAttachment("wheel_rl")).Pos, self.RearHeight, self.RearWheelRadius, false, self.posepositions.Pose1_Pos_RL, self.VehicleData.suspensiontravel_rl, self.RearConstant, self.RearDamping, self.RearRelativeDamping)
-    self:CreateWheel(4, WheelRR, self:GetAttachment(self:LookupAttachment("wheel_rr")).Pos, self.RearHeight, self.RearWheelRadius, true, self.posepositions.Pose1_Pos_RR, self.VehicleData.suspensiontravel_rr, self.RearConstant, self.RearDamping, self.RearRelativeDamping)
-
     function modelPanel:LayoutEntity(ent) return end -- how do we make cam movement smoothened?
 
-    function modelPanel:PreDrawModel(ent)
-    	create wheel cs models
-    	create exhaust particles
-    	create light entities
-    end
+    if IsValid(modelPanel.Entity) then -- post-init
+    	local ent = modelPanel.Entity
+    	local wheelcount = 4
 
-    function modelPanel:PostDrawModel(ent)
-    	create wheel cs models
-    	create exhaust particles
+        if simfphystbl.CustomWheels and simfphystbl.CustomWheelPosML then
+            wheelcount = wheelcount + 1
+        end
+
+        if simfphystbl.CustomWheels and simfphystbl.CustomWheelPosMR then
+            wheelcount = wheelcount + 1
+        end
+
+    	for i = 1, wheelcount do
+    		if simfphystbl.CustomWheels then
+		    	local CSWheel = CreateCSWheel(simfphystbl, ent, i, ent:LocalToWorld(simfphystbl.[simfphyswheelpos[i]]), simfphystbl.[simfphyswheelheight[i]], simfphyswheelbools[i])
+		    	table.insert(CSents, CSWheel)
+		    else
+		    	local CSWheel = CreateCSWheel(simfphystbl, ent, i, simfphyswheelatts[i], simfphystbl.[simfphyswheelheight[i]], simfphyswheelbools[i])
+		    	table.insert(CSents, CSWheel)
+		    end
+	    end
+
+    	create exhaust
     	create light entities
-    	render.SuppressEngineLighting(false)
     end
 
 	function modelPanel:Paint(w, h)
@@ -184,7 +297,20 @@ local function FancyModelPanel(parent, model, x, y, w, h)
 
 	function modelPanel:OnRemove()
 		GarbageCollectMats()
-		remove all ents and csents
+		GarbageCollectCSEnts(CSents)
+	end
+
+	function modelPanel:Think()
+		if !IsValid(modelPanel.Entity) then return end
+		local curtime = CurTime()
+		local IdleRPM = simfphystbl.IdleRPM
+		local LimitRPM = simfphystbl.LimitRPM
+	    self.RunNext = self.RunNext or 0
+
+	    if self.RunNext < curtime then
+	        ExhaustEffect(modelPanel.Entity, simfphystbl, 0.50, IdleRPM, LimitRPM)
+	        self.RunNext = curtime + 0.06
+	    end
 	end
 
 	SetStaticCubemap(modelPanel.Entity)
@@ -194,8 +320,26 @@ local function FancyModelPanel(parent, model, x, y, w, h)
     return modelPanel
 end
 
-local function OpenBrowseUI(manu)
-	fancydmodelpanel
+local function ManufacturerButton(parent, tbl, w, h)
+    local button = parent:Add("DButton")
+    button:SetSize(w, h)
+
+    button:SetText(tbl.PrintName)
+
+    function button:Paint(w, h)
+        draw.RoundedBox(2, 0, 0, w, h, graycolor)
+        draw.DrawText(self:GetText(), "Default", 20, 0, whitecolor, TEXT_ALIGN_LEFT)
+        surface.SetMaterial(iconcache[tbl.PrintName])
+        surface.DrawTexturedRectRotated(x, y, w, h, 0) -- how do we make the cubemap rotate with model orientation?
+
+        return nil
+    end
+
+    return button
+end
+
+local function OpenBrowseUI(frame)
+	FancyModelPanel(frame, simfphystbl, x, y, w, h)
 	dpnael for stats
 	dpanel for playerstats
 	horizontalscrollpanel for car buttons
@@ -220,17 +364,76 @@ local function OpenBrowseUI(manu)
 end
 
 local function OpenDealerUI()
-	create frame
-	enable keyboard nagivation -- how do we do keyboard nagivation?
+	local manufacturers = chicagoRPCarDealer.Manufacturers
+	local vehicles = chicagoRPCarDealer.Vehicles
+	local manufacturers_hashtable = chicagoRPCarDealer.Manufacturers_HashTable
+	local vehicles_hashtable = chicagoRPCarDealer.Vehicles_HashTable
+    local scrW = ScrW()
+    local scrH = ScrH()
+    local motherFrame = vgui.Create("DFrame")
+    motherFrame:SetSize(scrWm scrH)
+    motherFrame:SetVisible(true)
+    motherFrame:SetDraggable(false)
+    motherFrame:ShowCloseButton(true)
+    motherFrame:SetTitle("Car Dealer")
+    motherFrame:ParentToHUD()
+    chicagoRP.HideHUD = true
 
-	for manufacturers table do
-		create button in dscrollpanel
+    motherFrame.lblTitle.Think = nil
 
-		doclick
-			openbrowseUI(v)
-		end
-	end
+    chicagoRP.PanelFadeIn(motherFrame, 0.15)
+
+    motherFrame:SetKeyboardInputEnabled(true)
+    motherFrame:MakePopup()
+    motherFrame:Center()
+
+    function motherFrame:OnClose()
+        if IsValid(self) then
+            chicagoRP.PanelFadeOut(motherFrame, 0.15)
+        end
+
+        chicagoRP.HideHUD = false
+    end
+
+    function motherFrame:OnKeyCodePressed(key)
+        if key == KEY_ESCAPE or key == KEY_Q then
+            surface.PlaySound("chicagoRP_settings/back.wav")
+            timer.Simple(0.15, function()
+                if IsValid(self) then
+                    self:Close()
+                end
+            end)
+        end
+    end
+
+    function motherFrame:Paint(w, h)
+        -- chicagoRP.BlurBackground(self)
+        surface.SetDrawColor(40, 40, 40, 200)
+        surface.DrawRect(0, 0, w, h)
+    end
+
+	local scrollPanel = vgui.Create("DScrollPanel", motherFrame) -- Create the Scroll panel
+	scrollPanel:Dock(FILL)
+	scrollPanel:DockMargin(10, 150, 10, 10)
+
+	local buttonLayout = vgui.Create("DIconLayout", scrollPanel)
+	buttonLayout:Dock(FILL)
+	buttonLayout:SetSpaceY(10)
+	buttonLayout:SetSpaceX(10)
+
+    for i = 1, #manufacturers do
+    	local manuButton = ManufacturerButton(buttonLayout, manufacturers[i], 200, 250)
+
+    	function manuButton:DoClick()
+    		code here lmao
+    		openbrowseUI(v) -- remove frame when you do this
+    	end
+    end
 end
+
+-- to-do:
+-- icon material caching
+-- adding vehicles to manufacturer table (ONLY THEIR NAMES), keep current vehicle table as an index for that
 
 -- upgrade calc needs to be serverside i think (apply upgrades temporarily and then reset to original stats on exit)
 -- we need to find a way to make this unexploitable (reset on exiting vehicle, reset on closing UI, create setupmove hook to reset stats once player position has changed a fair bit then remove hook)
