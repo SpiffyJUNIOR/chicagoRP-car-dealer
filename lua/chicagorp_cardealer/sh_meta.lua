@@ -1,56 +1,41 @@
 local ENTITY = FindMetaTable("Entity")
 
 local simfphys_stats = {
-    {
-        "Mass"
-    }, {
-        "FrontHeight"
-    }, {
-        "FrontConstant"
-    }, {
-        "FrontDamping"
-    }, {
-        "FrontRelativeDamping"
-    }, {
-        "RearHeight"
-    }, {
-        "RearConstant"
-    }, {
-        "RearDamping"
-    }, {
-        "RearRelativeDamping"
-    }, {
-        "FastSteeringAngle"
-    }, {
-        "SteeringFadeFastSpeed"
-    }, {
-        "TurnSpeed"
-    }, {
-        "MaxGrip"
-    }, {
-        "Efficiency"
-    }, {
-        "GripOffset"
-    }, {
-        "BrakePower"
-    }, {
-        "IdleRPM"
-    }, {
-        "LimitRPM"
-    }, {
-        "PeakTorque"
-    }, {
-        "PowerbandStart"
-    }, {
-        "PowerbandEnd"
-    }, {
-        "PowerBias"
-    }, {
-        "DifferentialGear"
-    }, {
-        "Gears"
-    }
+    {"Mass"},
+    {"FrontHeight"},
+    {"FrontConstant"},
+    {"FrontDamping"},
+    {"FrontRelativeDamping"},
+    {"RearHeight"},
+    {"RearConstant"},
+    {"RearDamping"},
+    {"RearRelativeDamping"},
+    {"FastSteeringAngle"},
+    {"SteeringFadeFastSpeed"},
+    {"TurnSpeed"},
+    {"MaxGrip"},
+    {"Efficiency"},
+    {"GripOffset"},
+    {"BrakePower"},
+    {"IdleRPM"},
+    {"LimitRPM"},
+    {"PeakTorque"},
+    {"PowerbandStart"},
+    {"PowerbandEnd"},
+    {"PowerBias"},
+    {"DifferentialGear"},
+    {"Gears"}
 }
+
+local function removename(tbl)
+	if !istable(tbl) or table.IsEmpty(tbl) then return end
+	local newobject = tbl
+
+	newobject.PrintName = nil
+	newobject.EntityName = nil
+
+	return newobject
+end
 
 ---------------------------------
 -- chicagoRPCarDealer.AddManufacturer
@@ -58,13 +43,13 @@ local simfphys_stats = {
 -- Desc:		Adds a manufacturer to the global manufacturer table.
 -- State:		Shared
 -- Arg One:		Manufacturer table.
-function chicagoRPCarDealer.AddManufacturer(tableinput)
+function chicagoRPCarDealer.AddManufacturer(tbl)
 	local seqtable = chicagoRPCarDealer.Manufacturers
 	local hashtable = chicagoRPCarDealer.Manufacturers_HashTable
 
-	table.insert(seqtable, tableinput)
-    hashtable[tbl.name] = tbl
-    hashtable[tbl.name].index = #hashtable + 1
+	table.insert(seqtable, tbl)
+    hashtable[tbl.PrintName] = removename(tbl)
+    hashtable[tbl.PrintName].index = #hashtable + 1
 end
 
 ---------------------------------
@@ -74,14 +59,19 @@ end
 -- State:		Shared
 -- Arg One:		Car table.
 function chicagoRPCarDealer.AddVehicle(tbl)
-	-- chicagoRPCarDealer.[tbl.manufacturer] = tbl
+	local seqtable_M = chicagoRPCarDealer.Manufacturers
+	local hashtable_M = chicagoRPCarDealer.Manufacturers_HashTable
 	local seqtable = chicagoRPCarDealer.Vehicles
 	local hashtable = chicagoRPCarDealer.Vehicles_HashTable
+	local manufacturerindex = hashtable_M[tbl.Manufacturer].index
 
-	tbl.upgradeslots = {}
 	table.insert(seqtable, tbl)
-    hashtable[tbl.name] = tbl
-    hashtable[tbl.name].index = #hashtable + 1
+    hashtable[tbl.EntityName] = removename(tbl)
+    hashtable[tbl.EntityName].index = #hashtable + 1
+
+    table.insert(seqtable_M[manufacturerindex], tbl.EntityName)
+    hashtable_M[tbl.Manufacturer].[tbl.EntityName] = true
+    hashtable_M[tbl.Manufacturer].[tbl.EntityName].index = #seqtable_M[manufacturerindex] + 1
 end
 
 ---------------------------------
@@ -93,11 +83,11 @@ end
 function chicagoRPCarDealer.AddUpgradeSlot(tbl)
 	local seqtable = chicagoRPCarDealer.Vehicles
 	local hashtable = chicagoRPCarDealer.Vehicles_HashTable
-	local carindex = hashtable[tbl.vehicle].index
+	local carindex = hashtable[tbl.Vehicle].index
 
 	table.insert(seqtable[carindex].upgradeslots, carindex, tbl)
-	hashtable[tbl.vehicle].upgradeslots[tbl.slot] = tbl
-	hashtable[tbl.vehicle].upgradeslots[tbl.slot].index = #hashtable.upgradeslots + 1
+	hashtable[tbl.Vehicle].upgradeslots[tbl.PrintName] = tbl
+	hashtable[tbl.Vehicle].upgradeslots[tbl.PrintName].index = #hashtable.upgradeslots + 1
 end
 
 ---------------------------------
@@ -109,12 +99,12 @@ end
 function chicagoRPCarDealer.AddUpgrade(tbl)
 	local seqtable = chicagoRPCarDealer.Vehicles
 	local hashtable = chicagoRPCarDealer.Vehicles_HashTable
-	local carindex = hashtable[tbl.vehicle].index
-	local slotindex = hashtable[tbl.vehicle].upgradeslots[tbl.slot].index
+	local carindex = hashtable[tbl.Vehicle].index
+	local slotindex = hashtable[tbl.Vehicle].upgradeslots[tbl.Slot].index
 
-	table.insert(seqtable[tbl.vehicle].upgradeslots[slotindex], tbl)
-	hashtable[tbl.vehicle].upgradeslots[tbl.slot][tbl.upgradename] = tbl
-	hashtable[tbl.vehicle].upgradeslots[tbl.slot][tbl.upgradename].index = #hashtable.upgradeslots[tbl.slot] + 1
+	table.insert(seqtable[tbl.Vehicle].upgradeslots[slotindex], tbl)
+	hashtable[tbl.Vehicle].upgradeslots[tbl.Slot][tbl.PrintName] = tbl
+	hashtable[tbl.Vehicle].upgradeslots[tbl.Slot][tbl.PrintName].index = #hashtable.upgradeslots[tbl.Slot] + 1
 end
 
 ---------------------------------
@@ -314,7 +304,7 @@ end
 function ENTITY:GetVehicleUpgradeSlots()
 	if !self:IsVehicle() then return end
 
-	return self.upgradeslots
+	return self.UpgadeSlots
 end
 
 ---------------------------------
@@ -327,8 +317,8 @@ function ENTITY:GetVehicleUpgrades()
 	if !self:IsVehicle() then return end
 	local upgradetable = {}
 
-	for i = 1, #self.upgradeslots do
-		upgradetabel[i] = self.upgradeslots[i]
+	for i = 1, #self.UpgadeSlots do
+		upgradetable[i] = self.UpgadeSlots[i]
 	end
 
 	return upgradetable

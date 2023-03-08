@@ -1,8 +1,11 @@
 local OpenModelPanel = nil
+local historytable = {} -- clearly defined structure needed (1: manufacturer scrollpos, 2: manufacturer opened, 3: browse scrollpos, 4: purchase panel car selected)
 local vehiclewheels = {}
+local manufacturermats = {}
 local cubemapmats = {}
 local lerpStart = 0
 local lerpTime = 0
+local client = LocalPlayer()
 local defaultCamPos = Vector(50, 50, 50)
 local defaultCamAng = Angle(0, 0, 40)
 local rightangle = Angle(0, 90, 0)
@@ -40,6 +43,33 @@ local simfphyswheelbools = {
 	[5] = false,
 	[6] = true,
 }
+
+local function ismaterial(mat)
+    return mat != nil and type(mat) == "material"
+end
+
+local function ManufacturerMaterials()
+	for i = 1, #chicagoRPCarDealer.Manufacturers do
+		if ismaterial(manufacturermats[i]) then continue end
+
+		manufacturermats[i] = Material(chicagoRPCarDealer.Manufacturers[i].Icon, "smooth mips")
+	end
+end
+
+local function CenterElement(mainW, mainH, elementW, elementH)
+	local centerX = mainW * (0.5) - elementW * 0.5
+	local centerY = mainH * (0.5) - elementH * 0.5
+
+	return centerX, centerY
+end
+
+local function OpenDealerUI()
+	DealerUI()
+end
+
+local function OpenBrowseUI()
+	BrowseUI()
+end
 
 local function SetStaticCubemap(ent)
 	if !IsValid(ent) then return end
@@ -201,10 +231,61 @@ local function CreateCSWheel(simfphystbl, ent, index, attachmentpos, height, swa
     end
 end
 
-local function FancyModelPanel(parent, simfphystbl, x, y, w, h)
-    if lightcolor == nil then lightcolor = whitecolor end
-    if model == nil or parent == nil then return end
+local function CreateWheelEnts(ent, simfphystbl)
+	if !IsValid(ent) then return end
+	local wheelcount = 4
 
+    if simfphystbl.CustomWheels and simfphystbl.CustomWheelPosML then
+        wheelcount = wheelcount + 1
+    end
+
+    if simfphystbl.CustomWheels and simfphystbl.CustomWheelPosMR then
+        wheelcount = wheelcount + 1
+    end
+
+	for i = 1, wheelcount do
+		if simfphystbl.CustomWheels then
+	    	local CSWheel = CreateCSWheel(simfphystbl, ent, i, ent:LocalToWorld(simfphystbl.[simfphyswheelpos[i]]), simfphystbl.[simfphyswheelheight[i]], simfphyswheelbools[i])
+	    	table.insert(CSents, CSWheel)
+	    else
+	    	local CSWheel = CreateCSWheel(simfphystbl, ent, i, simfphyswheelatts[i], simfphystbl.[simfphyswheelheight[i]], simfphyswheelbools[i])
+	    	table.insert(CSents, CSWheel)
+	    end
+    end
+end
+
+local function StatPanel(parent, x, y, w, h)
+    if !IsValid(parent) then return end
+
+    local stattbl = nil
+
+    local statPanel = vgui.Create("DPanel", parent)
+    statPanel:SetSize(w, h)
+    statPanel:SetPos(x, y)
+
+    function statPanel:Paint(w, h)
+    	draw.RoundedBox(2, 0, 0, w, h, graycolor)
+
+    	if !istable(stattbl) then 
+    		draw.SimpleText("No vehicle highlighted, or no stats to display.", "Default", 5, 5, color_white, TEXT_ALIGN_LEFT)
+
+    		return
+    	end
+
+    	for i = 1, #stattbl do
+    		draw.DrawText(stattbl[i].stat, "Default", 20, 0, color_white, TEXT_ALIGN_LEFT)
+    	end
+    end
+
+    function statPanel:SetStatTable(tbl)
+    	stattbl = GetCarStats(tbl)
+    end
+end
+
+local function FancyModelPanel(parent, x, y, w, h)
+    if !IsValid(parent) then return end
+
+    local simfphystbl = nil
     local CSents = {}
 
     local parentPanel = vgui.Create("DPanel", parent)
@@ -218,7 +299,6 @@ local function FancyModelPanel(parent, simfphystbl, x, y, w, h)
     local modelPanel = vgui.Create("DModelPanel", parentPanel)
     modelPanel:SetSize(w, h)
     modelPanel:SetPos(x, y)
-    modelPanel:SetModel(simfphystbl.Model)
     -- modelPanel:SetAmbientLight(color_white) -- main light up top (typically slightly yellow), fill light below camera (very faint pale blue), rim light to the left (urban color), rimlight to the right (white)
     -- modelPanel:SetDirectionalLight(BOX_TOP, slightyellowcolor)
     -- modelPanel:SetDirectionalLight(BOX_FRONT, slightbluecolor)
@@ -228,32 +308,6 @@ local function FancyModelPanel(parent, simfphystbl, x, y, w, h)
     local oldCamAng = modelPanel:GetLookAng()
 
     function modelPanel:LayoutEntity(ent) return end -- how do we make cam movement smoothened?
-
-    if IsValid(modelPanel.Entity) then -- post-init
-    	local ent = modelPanel.Entity
-    	local wheelcount = 4
-
-        if simfphystbl.CustomWheels and simfphystbl.CustomWheelPosML then
-            wheelcount = wheelcount + 1
-        end
-
-        if simfphystbl.CustomWheels and simfphystbl.CustomWheelPosMR then
-            wheelcount = wheelcount + 1
-        end
-
-    	for i = 1, wheelcount do
-    		if simfphystbl.CustomWheels then
-		    	local CSWheel = CreateCSWheel(simfphystbl, ent, i, ent:LocalToWorld(simfphystbl.[simfphyswheelpos[i]]), simfphystbl.[simfphyswheelheight[i]], simfphyswheelbools[i])
-		    	table.insert(CSents, CSWheel)
-		    else
-		    	local CSWheel = CreateCSWheel(simfphystbl, ent, i, simfphyswheelatts[i], simfphystbl.[simfphyswheelheight[i]], simfphyswheelbools[i])
-		    	table.insert(CSents, CSWheel)
-		    end
-	    end
-
-    	create exhaust
-    	create light entities
-    end
 
 	function modelPanel:Paint(w, h)
 		if !IsValid(self.Entity) then return end
@@ -301,7 +355,8 @@ local function FancyModelPanel(parent, simfphystbl, x, y, w, h)
 	end
 
 	function modelPanel:Think()
-		if !IsValid(modelPanel.Entity) then return end
+		if !IsValid(modelPanel.Entity) or !istable(simfphystbl) then return end
+
 		local curtime = CurTime()
 		local IdleRPM = simfphystbl.IdleRPM
 		local LimitRPM = simfphystbl.LimitRPM
@@ -313,24 +368,58 @@ local function FancyModelPanel(parent, simfphystbl, x, y, w, h)
 	    end
 	end
 
-	SetStaticCubemap(modelPanel.Entity)
+	function modelPanel:PerformLayout(w, h)
+		GarbageCollectMats()
+		GarbageCollectCSEnts(CSents)
+
+	    if IsValid(modelPanel.Entity) then -- post-init
+	    	CreateWheelEnts(modelPanel.Entity, simfphystbl)
+	    end
+
+	    SetStaticCubemap(modelPanel.Entity)
+	end
+
+	function modelPanel:SetSimfphysTable(tbl)
+		simfphystbl = tbl
+	end
 
 	OpenModelPanel = modelPanel
 
     return modelPanel
 end
 
-local function ManufacturerButton(parent, tbl, w, h)
+local function HorizontalScrollPanel(parent, x, y, w, h)
+	local scrollPanel = vgui.Create("chicagoRP_HorizontalScrollPanel", parent)
+	scrollPanel:SetSize(w, h)
+	scrollPanel:SetPos(x, y)
+
+	local scrollBar = scrollPanel:GetVBar()
+
+    function button:Paint(w, h)
+        return nil
+    end
+
+    return scrollPanel
+end
+
+local function VehicleButton(parent, vehicletable, x, y, w, h) -- horizontally scrolling text?
+	if !IsValid(parent) or !istable(vehicletable) then return end
+
     local button = parent:Add("DButton")
     button:SetSize(w, h)
+    button:Dock(LEFT)
+    button:DockMargin(10, 0, 10, 0)
+    
+    button:SetText(vehicletable.PrintName)
 
-    button:SetText(tbl.PrintName)
+    local centerX, centerY = CenterElement(w, h, 120, 90)
+    local textCenterX, centerY = CenterElement(120, 90, 30, 15)
 
     function button:Paint(w, h)
         draw.RoundedBox(2, 0, 0, w, h, graycolor)
-        draw.DrawText(self:GetText(), "Default", 20, 0, whitecolor, TEXT_ALIGN_LEFT)
-        surface.SetMaterial(iconcache[tbl.PrintName])
-        surface.DrawTexturedRectRotated(x, y, w, h, 0) -- how do we make the cubemap rotate with model orientation?
+        draw.DrawText(self:GetText(), "Default", h - 20, 5, color_white, TEXT_ALIGN_LEFT)
+        draw.RoundedBox(2, centerX, centerY, 120, 90, Color(10, 10, 10, 50))
+        draw.DrawText("icon should be here", "Default", textCenterX, centerY, color_white, TEXT_ALIGN_LEFT)
 
         return nil
     end
@@ -338,32 +427,74 @@ local function ManufacturerButton(parent, tbl, w, h)
     return button
 end
 
-local function OpenBrowseUI(frame)
-	FancyModelPanel(frame, simfphystbl, x, y, w, h)
-	dpnael for stats
-	dpanel for playerstats
-	horizontalscrollpanel for car buttons
+local function BackButton(parent, x, y, w, h)
+	if !IsValid(parent) then return end
 
-	dstatpanel:performlayout
-		dstatpanel.car:getstats()
-	end
+    local button = parent:Add("DButton")
+    button:SetSize(w, h)
+    button:SetPos(x, y)
+    button:SetText("iconhere Back")
 
-	for k, v in ipairs(manu) do
-		dbutton
+    function button:Paint(w, h)
+        draw.RoundedBox(2, 0, 0, w, h, graycolor)
+        draw.DrawText(self:GetText(), "Default", 20, 0, color_white, TEXT_ALIGN_RIGHT)
 
-		if dbutton hovered
-			timer simple 1.5 dmodelpanel:setModel()
-			dstatpanel.car = self
-			dstatpanel invalidatelayout()
-		end
+        return nil
+    end
 
-		dbutton doclick
-			OpenPurchaseUI
-		end
-	end
+    function button:DoClick()
+    	if IsValid(OpenBrowseFrame) then
+	        chicagoRP.PanelFadeOut(OpenBrowseFrame, 0.15)
+	        OpenBrowseFrame:Close()
+	    end
+
+    	OpenDealerUI()
+    end
+
+    return button
 end
 
-local function OpenDealerUI()
+local function ManufacturerPanel(parent, index, x, y, w, h)
+	if !IsValid(parent) then return end
+
+    local manuPanel = parent:Add("DPanel")
+    manuPanel:SetSize(w, h)
+    manuPanel:SetPos(x, y)
+    manuPanel:SetText(chicagoRPCarDealer.Manufacturers[index].PrintName)
+
+    function manuPanel:Paint(w, h)
+        draw.RoundedBox(2, 0, 0, w, h, graycolor)
+        draw.DrawText(self:GetText(), "Default", 20, 0, color_white, TEXT_ALIGN_RIGHT)
+        surface.SetMaterial(manufacturermats[index])
+        surface.DrawTexturedRectRotated(64, 6, 32, 32, 0)
+
+        return nil
+    end
+
+    return manuPanel
+end
+
+local function MoneyPanel(parent, x, y, w, h)
+	if !IsValid(parent) then return end
+
+    local moneyPanel = parent:Add("DPanel")
+    moneyPanel:SetSize(w, h)
+    moneyPanel:SetPos(x, y)
+
+    function moneyPanel:Paint(w, h)
+        draw.RoundedBox(2, 0, 0, w, h, graycolor)
+
+        if !IsValid(client) then return nil end
+
+        draw.DrawText("$" .. tostring(client:getDarkRPVar("money")), "Default", 20, 0, color_white, TEXT_ALIGN_LEFT)
+
+        return nil
+    end
+
+    return moneyPanel
+end
+
+local function BrowseUI(manufacturer, manuindex)
 	local manufacturers = chicagoRPCarDealer.Manufacturers
 	local vehicles = chicagoRPCarDealer.Vehicles
 	local manufacturers_hashtable = chicagoRPCarDealer.Manufacturers_HashTable
@@ -371,11 +502,11 @@ local function OpenDealerUI()
     local scrW = ScrW()
     local scrH = ScrH()
     local motherFrame = vgui.Create("DFrame")
-    motherFrame:SetSize(scrWm scrH)
+    motherFrame:SetSize(scrW, scrH)
     motherFrame:SetVisible(true)
     motherFrame:SetDraggable(false)
     motherFrame:ShowCloseButton(true)
-    motherFrame:SetTitle("Car Dealer")
+    motherFrame:SetTitle(manufacturers[i].PrintName)
     motherFrame:ParentToHUD()
     chicagoRP.HideHUD = true
 
@@ -412,6 +543,99 @@ local function OpenDealerUI()
         surface.DrawRect(0, 0, w, h)
     end
 
+	local modelPanel = FancyModelPanel(motherFrame, 5, 50, 1900, 835)
+	local statPanel = StatPanel(motherFrame, 1500, 60, 380, 400)
+	local backButton = BackButton(motherFrame, 0, 0, 195, 40)
+	local manufacturerPanel = ManufacturerPanel(motherFrame, manuindex, 200, 0, 220, 40)
+	local moneyPanel = MoneyPanel(motherFrame, 1775, 0, 150, 40)
+
+	local scrollPanel = HorizontalScrollPanel(motherFrame, 20, 900, 1890, 150)
+
+	for i = 1, #manufacturer do
+		local vehicleButton = VehicleButton(scrollPanel, manufacturer[i], 150, 120)
+
+		if dbutton hovered
+			timer simple 1.5 dmodelpanel:setModel()
+			dstatpanel.car = self
+			dstatpanel invalidatelayout()
+		end
+
+		dbutton doclick
+			PurchaseUI
+		end
+	end
+
+	OpenBrowseFrame = motherFrame
+end
+
+local function ManufacturerButton(parent, tbl, w, h)
+    local button = parent:Add("DButton")
+    button:SetSize(w, h)
+    button:SetText(tbl.PrintName)
+
+    function button:Paint(w, h)
+        draw.RoundedBox(2, 0, 0, w, h, graycolor)
+        draw.DrawText(self:GetText(), "Default", 20, 0, color_white, TEXT_ALIGN_LEFT)
+        surface.SetMaterial(manufacturermats[tbl.index])
+        surface.DrawTexturedRectRotated(128, 128, 128, 128, 0)
+
+        return nil
+    end
+
+    return button
+end
+
+local function DealerUI()
+	local manufacturers = chicagoRPCarDealer.Manufacturers
+	local vehicles = chicagoRPCarDealer.Vehicles
+	local manufacturers_hashtable = chicagoRPCarDealer.Manufacturers_HashTable
+	local vehicles_hashtable = chicagoRPCarDealer.Vehicles_HashTable
+    local scrW = ScrW()
+    local scrH = ScrH()
+    local motherFrame = vgui.Create("DFrame")
+    motherFrame:SetSize(scrW, scrH)
+    motherFrame:SetVisible(true)
+    motherFrame:SetDraggable(false)
+    motherFrame:ShowCloseButton(true)
+    motherFrame:SetTitle("Car Dealer")
+    motherFrame:ParentToHUD()
+    chicagoRP.HideHUD = true
+
+    motherFrame.lblTitle.Think = nil
+
+    chicagoRP.PanelFadeIn(motherFrame, 0.15)
+
+    motherFrame:SetKeyboardInputEnabled(true)
+    motherFrame:MakePopup()
+    motherFrame:Center()
+
+    ManufacturerMaterials()
+
+    function motherFrame:OnClose()
+        if IsValid(self) then
+            chicagoRP.PanelFadeOut(motherFrame, 0.15)
+        end
+
+        chicagoRP.HideHUD = false
+    end
+
+    function motherFrame:OnKeyCodePressed(key)
+        if key == KEY_ESCAPE or key == KEY_Q then
+            surface.PlaySound("chicagoRP_settings/back.wav")
+            timer.Simple(0.15, function()
+                if IsValid(self) then
+                    self:Close()
+                end
+            end)
+        end
+    end
+
+    function motherFrame:Paint(w, h)
+        -- chicagoRP.BlurBackground(self)
+        surface.SetDrawColor(40, 40, 40, 200)
+        surface.DrawRect(0, 0, w, h)
+    end
+
 	local scrollPanel = vgui.Create("DScrollPanel", motherFrame) -- Create the Scroll panel
 	scrollPanel:Dock(FILL)
 	scrollPanel:DockMargin(10, 150, 10, 10)
@@ -422,18 +646,23 @@ local function OpenDealerUI()
 	buttonLayout:SetSpaceX(10)
 
     for i = 1, #manufacturers do
-    	local manuButton = ManufacturerButton(buttonLayout, manufacturers[i], 200, 250)
+    	local manufacButton = ManufacturerButton(buttonLayout, manufacturers[i], 256, 256)
 
-    	function manuButton:DoClick()
-    		code here lmao
-    		openbrowseUI(v) -- remove frame when you do this
+    	function manufacButton:DoClick()
+            chicagoRP.PanelFadeOut(motherFrame, 0.15)
+            motherFrame:Close()
+
+    		BrowseUI(manufacturers[i], i) -- remove frame when you do this
     	end
     end
+
+    OpenDealerFrame = motherFrame
 end
 
 -- to-do:
--- icon material caching
--- adding vehicles to manufacturer table (ONLY THEIR NAMES), keep current vehicle table as an index for that
+-- n/a just code
+-- hovered car buttons
 
+-- calc stats somehow
 -- upgrade calc needs to be serverside i think (apply upgrades temporarily and then reset to original stats on exit)
 -- we need to find a way to make this unexploitable (reset on exiting vehicle, reset on closing UI, create setupmove hook to reset stats once player position has changed a fair bit then remove hook)
