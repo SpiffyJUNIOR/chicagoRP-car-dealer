@@ -32,6 +32,7 @@ Car.PrintName = "Toyota MR2"
 Car.Description = [[The Toyota MR2 is a line of two-seat, mid-engined, rear-wheel-drive sports cars manufactured in Japan and marketed globally by Toyota from 1984 until 2007 over three generations: W10 (1984–1989), W20 (1989–1999) and W30 (2000–2007). It is Japan's first rear mid-engined production car. Conceived as a small, economical and sporty car, the MR2 employed straightforward design elements, including fully independent MacPherson strut front and rear suspensions, four-wheel disc brakes, and a transverse-mounted inline-four engine.]]
 Car.Manufacturer = "Toyota"
 Car.Price = 2000
+Car.DefaultColor = {139, 0, 0, 255}
 
 chicagoRPCarDealer.AddCar(Car)
 
@@ -42,6 +43,7 @@ Car.PrintName = "Text"
 Car.Description = [[text]]
 Car.Manufacturer = "string"
 Car.Price = 2000
+Car.DefaultColor = {139, 0, 0, 255}
 
 chicagoRPCarDealer.AddCar(Car)
 
@@ -52,5 +54,6 @@ Car.PrintName = "Text"
 Car.Description = [[text]]
 Car.Manufacturer = "string"
 Car.Price = 2000
+Car.DefaultColor = {139, 0, 0, 255}
 
 chicagoRPCarDealer.AddCar(Car)

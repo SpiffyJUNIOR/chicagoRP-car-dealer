@@ -1,3 +1,6 @@
+local OpenDealerFrame = nil
+local OpenBrowseFrame = nil
+local OpenPurchaseFrame = nil
 local OpenModelPanel = nil
 local historytable = {} -- clearly defined structure needed (1: manufacturer scrollpos, 2: manufacturer opened, 3: browse scrollpos, 4: purchase panel car selected)
 local vehiclewheels = {}
@@ -372,11 +375,11 @@ local function FancyModelPanel(parent, x, y, w, h)
 		GarbageCollectMats()
 		GarbageCollectCSEnts(CSents)
 
-	    if IsValid(modelPanel.Entity) then -- post-init
-	    	CreateWheelEnts(modelPanel.Entity, simfphystbl)
+	    if IsValid(self.Entity) then -- post-init
+	    	CreateWheelEnts(self.Entity, simfphystbl)
 	    end
 
-	    SetStaticCubemap(modelPanel.Entity)
+	    SetStaticCubemap(self.Entity)
 	end
 
 	function modelPanel:SetSimfphysTable(tbl)
@@ -386,6 +389,61 @@ local function FancyModelPanel(parent, x, y, w, h)
 	OpenModelPanel = modelPanel
 
     return modelPanel
+end
+
+local function PurchaseUI(vehicletbl)
+    local scrW = ScrW()
+    local scrH = ScrH()
+    local motherFrame = vgui.Create("DFrame")
+    motherFrame:SetSize(scrW, scrH)
+    motherFrame:SetVisible(true)
+    motherFrame:SetDraggable(false)
+    motherFrame:ShowCloseButton(true)
+    motherFrame:SetTitle(manufacturers[i].PrintName)
+    motherFrame:ParentToHUD()
+    chicagoRP.HideHUD = true
+
+    motherFrame.lblTitle.Think = nil
+
+    chicagoRP.PanelFadeIn(motherFrame, 0.15)
+
+    motherFrame:SetKeyboardInputEnabled(true)
+    motherFrame:MakePopup()
+    motherFrame:Center()
+
+    function motherFrame:OnClose()
+        if IsValid(self) then
+            chicagoRP.PanelFadeOut(motherFrame, 0.15)
+        end
+
+        chicagoRP.HideHUD = false
+    end
+
+    function motherFrame:OnKeyCodePressed(key)
+        if key == KEY_ESCAPE or key == KEY_Q then
+            surface.PlaySound("chicagoRP_settings/back.wav")
+            timer.Simple(0.15, function()
+                if IsValid(self) then
+                    self:Close()
+                end
+            end)
+        end
+    end
+
+    function motherFrame:Paint(w, h)
+        -- chicagoRP.BlurBackground(self)
+        surface.SetDrawColor(40, 40, 40, 200)
+        surface.DrawRect(0, 0, w, h)
+    end
+
+    local modelPanel = nil
+    local buttonPanel = nil
+    local colorButton = nil
+    local colorPicker = nil
+    local purchaseButton = nil
+    local testDriveButton = nil
+
+    OpenPurchaseFrame = motherFrame
 end
 
 local function HorizontalScrollPanel(parent, x, y, w, h)
@@ -415,9 +473,14 @@ local function VehicleButton(parent, vehicletable, x, y, w, h) -- horizontally s
     local centerX, centerY = CenterElement(w, h, 120, 90)
     local textCenterX, centerY = CenterElement(120, 90, 30, 15)
 
+	local speed = 5
+	local range = 100
+
     function button:Paint(w, h)
+    	local offset = range * math.sin(CurTime() * speed)
+
         draw.RoundedBox(2, 0, 0, w, h, graycolor)
-        draw.DrawText(self:GetText(), "Default", h - 20, 5, color_white, TEXT_ALIGN_LEFT)
+        draw.DrawText(self:GetText(), "Default", 30 + offset, 5, color_white, TEXT_ALIGN_LEFT)
         draw.RoundedBox(2, centerX, centerY, 120, 90, Color(10, 10, 10, 50))
         draw.DrawText("icon should be here", "Default", textCenterX, centerY, color_white, TEXT_ALIGN_LEFT)
 
@@ -494,11 +557,22 @@ local function MoneyPanel(parent, x, y, w, h)
     return moneyPanel
 end
 
+local function RefreshModelPanel(vehicletbl)
+	local spawnlist = list.Get("simfphys_vehicles")
+	local simfphystbl = spawnlist[vehicletbl.EntityName]
+	local colortbl = vehicletbl.DefaultColor
+
+	if IsValid(OpenModelPanel) then
+		OpenModelPanel:SetModel(simfphystbl.Model)
+		OpenModelPanel:SetSimfphysTable(simfphystbl)
+		OpenModelPanel:InvalidateLayout(true)
+		if istable(colortbl) then
+			OpenModelPanel.Entity:SetColor(Color(colortbl[1], colortbl[2], colortbl[3], colortbl[4]))
+		end
+	end
+end
+
 local function BrowseUI(manufacturer, manuindex)
-	local manufacturers = chicagoRPCarDealer.Manufacturers
-	local vehicles = chicagoRPCarDealer.Vehicles
-	local manufacturers_hashtable = chicagoRPCarDealer.Manufacturers_HashTable
-	local vehicles_hashtable = chicagoRPCarDealer.Vehicles_HashTable
     local scrW = ScrW()
     local scrH = ScrH()
     local motherFrame = vgui.Create("DFrame")
@@ -554,14 +628,16 @@ local function BrowseUI(manufacturer, manuindex)
 	for i = 1, #manufacturer do
 		local vehicleButton = VehicleButton(scrollPanel, manufacturer[i], 150, 120)
 
-		if dbutton hovered
-			timer simple 1.5 dmodelpanel:setModel()
-			dstatpanel.car = self
-			dstatpanel invalidatelayout()
+		function vehicleButton:OnCursorEntered()
+			timer.Simple(1.5, function()
+				if IsValid(self) and self:IsHovered() then
+					RefreshModelPanel(manufacturer[i])
+				end
+			end)
 		end
 
-		dbutton doclick
-			PurchaseUI
+		function vehicleButton:DoClick()
+			PurchaseUI(manufacturer[i])
 		end
 	end
 
