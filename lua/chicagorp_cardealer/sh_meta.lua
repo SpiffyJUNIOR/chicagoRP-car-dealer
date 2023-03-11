@@ -27,6 +27,27 @@ local simfphys_stats = {
     {"Gears"}
 }
 
+local countries = {
+    ["Australia"] = "AU",
+    ["Austria"] = "AT",
+    ["Belgium"] = "BE",
+    ["Canada"] = "CA",
+    ["China"] = "CN",
+    ["France"] = "FR",
+    ["Germany"] = "DE",
+    ["India"] = "IN",
+    ["Italy"] = "IT",
+    ["Japan"] = "JP",
+    ["Netherlands"] = "NL",
+    ["Poland"] = "PL",
+    ["Russia"] = "RU",
+    ["South Korea"] = "KR",
+    ["Spain"] = "ES",
+    ["Sweden"] = "SE",
+    ["United Kingdom"] = "GB",
+    ["United States"] = "US"
+}
+
 local function removename(tbl)
 	if !istable(tbl) or table.IsEmpty(tbl) then return end
 	local newobject = tbl
@@ -221,6 +242,19 @@ function chicagoRPCarDealer.GetUpgradeStats(vehinp, slotinp, upginp)
 	elseif vehtyp == "string" and slottyp == "string" and upgtype == "string" then
 		return hashtable[carinp].upgradeslots[slotinp][upginp]
 	end
+end
+
+---------------------------------
+-- chicagoRPCarDealer.GetCountryCode
+---------------------------------
+-- Desc:		Gets a country's ISO 3166-1 alpha-2 code.
+-- State:		Shared
+-- Arg One:		String - Country string.
+-- Returns: 	String - ISO 3166-1 alpha-2 Country code.
+function chicagoRPCarDealer.GetCountryCode(ctrystr) -- memory usage? whats that???
+	if string.len(ctrystr) == 2 then return ctrystr end
+
+	return countries[ctrystr]
 end
 
 ---------------------------------

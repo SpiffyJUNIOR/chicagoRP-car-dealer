@@ -5,6 +5,7 @@ local OpenModelPanel = nil
 local historytable = {} -- clearly defined structure needed (1: manufacturer scrollpos, 2: manufacturer opened, 3: browse scrollpos, 4: purchase panel car selected)
 local vehiclewheels = {}
 local manufacturermats = {}
+local countrymats = {}
 local cubemapmats = {}
 local lerpStart = 0
 local lerpTime = 0
@@ -12,6 +13,8 @@ local client = LocalPlayer()
 local defaultCamPos = Vector(50, 50, 50)
 local defaultCamAng = Angle(0, 0, 40)
 local rightangle = Angle(0, 90, 0)
+
+local UIFuncs = UIFuncs or {}
 
 local simfphyswheelatts = {
 	[1] = "wheel_fl",
@@ -59,6 +62,29 @@ local function ManufacturerMaterials()
 	end
 end
 
+local function CountryMaterials(manufacturertbl)
+	local vehicleHashTable = chicagoRPCarDealer.Vehicles_HashTable
+
+	for i = 1, #manufacturertbl do
+		local vehicle = vehicleHashTable[i]
+		local country = chicagoRPCarDealer.GetCountryCode(vehicle.Country)
+
+		countrymats[country] = Material("materials/flags16/" .. country .. ".png", "mips")
+	end
+end
+
+local function GCManufacturerMats()
+	if table.IsEmpty(manufacturermats) then return end
+
+	manufacturermats = {}
+end
+
+local function GCCountryMats()
+	if table.IsEmpty(countrymats) then return end
+
+	countrymats = {}
+end
+
 local function CenterElement(mainW, mainH, elementW, elementH)
 	local centerX = mainW * (0.5) - elementW * 0.5
 	local centerY = mainH * (0.5) - elementH * 0.5
@@ -67,11 +93,11 @@ local function CenterElement(mainW, mainH, elementW, elementH)
 end
 
 local function OpenDealerUI()
-	DealerUI()
+	UIFuncs.DealerUI()
 end
 
 local function OpenBrowseUI()
-	BrowseUI()
+	UIFuncs.BrowseUI()
 end
 
 local function SetStaticCubemap(ent)
@@ -99,7 +125,7 @@ local function SetStaticCubemap(ent)
 	end
 end
 
-local function GarbageCollectMats()
+local function GCCubemapMats()
 	if table.IsEmpty(cubemapmats) then return end
 
 	for i = 1, #cubemapmats do
@@ -107,7 +133,7 @@ local function GarbageCollectMats()
 	end
 end
 
-local function GarbageCollectCSEnts(tbl)
+local function GCCSEnts(tbl)
 	if !istable(tbl) or table.IsEmpty(tbl) then return end
 
 	for i = 1, #tbl do
@@ -353,8 +379,8 @@ local function FancyModelPanel(parent, x, y, w, h)
 	end
 
 	function modelPanel:OnRemove()
-		GarbageCollectMats()
-		GarbageCollectCSEnts(CSents)
+		GCCubemapMats()
+		GCCSEnts(CSents)
 	end
 
 	function modelPanel:Think()
@@ -372,8 +398,8 @@ local function FancyModelPanel(parent, x, y, w, h)
 	end
 
 	function modelPanel:PerformLayout(w, h)
-		GarbageCollectMats()
-		GarbageCollectCSEnts(CSents)
+		GCCubemapMats()
+		GCCSEnts(CSents)
 
 	    if IsValid(self.Entity) then -- post-init
 	    	CreateWheelEnts(self.Entity, simfphystbl)
@@ -475,6 +501,7 @@ local function VehicleButton(parent, vehicletable, x, y, w, h) -- horizontally s
 
 	local speed = 5
 	local range = 100
+	local country = chicagoRPCarDealer.GetCountryCode(vehicletable.Country)
 
     function button:Paint(w, h)
     	local offset = range * math.sin(CurTime() * speed)
@@ -483,6 +510,8 @@ local function VehicleButton(parent, vehicletable, x, y, w, h) -- horizontally s
         draw.DrawText(self:GetText(), "Default", 30 + offset, 5, color_white, TEXT_ALIGN_LEFT)
         draw.RoundedBox(2, centerX, centerY, 120, 90, Color(10, 10, 10, 50))
         draw.DrawText("icon should be here", "Default", textCenterX, centerY, color_white, TEXT_ALIGN_LEFT)
+        surface.SetMaterial(countrymats[country])
+        surface.DrawTexturedRectRotated(64, 6, 32, 32, 0)
 
         return nil
     end
@@ -511,7 +540,7 @@ local function BackButton(parent, x, y, w, h)
 	        OpenBrowseFrame:Close()
 	    end
 
-    	OpenDealerUI()
+    	UIFuncs.OpenDealerUI()
     end
 
     return button
@@ -525,10 +554,12 @@ local function ManufacturerPanel(parent, index, x, y, w, h)
     manuPanel:SetPos(x, y)
     manuPanel:SetText(chicagoRPCarDealer.Manufacturers[index].PrintName)
 
+    local manumat = Material(chicagoRPCarDealer.Manufacturers[index].Icon, "smooth mips")
+
     function manuPanel:Paint(w, h)
         draw.RoundedBox(2, 0, 0, w, h, graycolor)
         draw.DrawText(self:GetText(), "Default", 20, 0, color_white, TEXT_ALIGN_RIGHT)
-        surface.SetMaterial(manufacturermats[index])
+        surface.SetMaterial(manumat)
         surface.DrawTexturedRectRotated(64, 6, 32, 32, 0)
 
         return nil
@@ -572,7 +603,14 @@ local function RefreshModelPanel(vehicletbl)
 	end
 end
 
-local function BrowseUI(manufacturer, manuindex)
+local function HoverTooltip(parent, hoveredpanel, w, h) -- do this
+	local tooltip = vgui.Create("DPanel")
+	tooltip:SetSize(290, 50)
+	expandto
+
+
+
+function UIFuncs.BrowseUI(manufacturer, manuindex)
     local scrW = ScrW()
     local scrH = ScrH()
     local motherFrame = vgui.Create("DFrame")
@@ -617,6 +655,8 @@ local function BrowseUI(manufacturer, manuindex)
         surface.DrawRect(0, 0, w, h)
     end
 
+    CountryMaterials(manufacturer)
+
 	local modelPanel = FancyModelPanel(motherFrame, 5, 50, 1900, 835)
 	local statPanel = StatPanel(motherFrame, 1500, 60, 380, 400)
 	local backButton = BackButton(motherFrame, 0, 0, 195, 40)
@@ -629,11 +669,22 @@ local function BrowseUI(manufacturer, manuindex)
 		local vehicleButton = VehicleButton(scrollPanel, manufacturer[i], 150, 120)
 
 		function vehicleButton:OnCursorEntered()
+			self.toolTip = HoverTooltip(motherFrame, self, 290, 50)
+
+			self.toolTip:SetText(manufacturer[i].PrintName)
+			self.toolTip:SetCountry(manufacturer[i].Country)
+
 			timer.Simple(1.5, function()
 				if IsValid(self) and self:IsHovered() then
 					RefreshModelPanel(manufacturer[i])
 				end
 			end)
+		end
+
+		function vehicleButton:OnCursorExited()
+			if IsValid(self.toolTip) then
+				self.toolTip:Remove()
+			end
 		end
 
 		function vehicleButton:DoClick()
@@ -661,7 +712,7 @@ local function ManufacturerButton(parent, tbl, w, h)
     return button
 end
 
-local function DealerUI()
+function UIFuncs.DealerUI()
 	local manufacturers = chicagoRPCarDealer.Manufacturers
 	local vehicles = chicagoRPCarDealer.Vehicles
 	local manufacturers_hashtable = chicagoRPCarDealer.Manufacturers_HashTable
@@ -691,6 +742,8 @@ local function DealerUI()
         if IsValid(self) then
             chicagoRP.PanelFadeOut(motherFrame, 0.15)
         end
+
+        GCManufacturerMats()
 
         chicagoRP.HideHUD = false
     end
@@ -728,7 +781,7 @@ local function DealerUI()
             chicagoRP.PanelFadeOut(motherFrame, 0.15)
             motherFrame:Close()
 
-    		BrowseUI(manufacturers[i], i) -- remove frame when you do this
+    		UIFuncs.BrowseUI(manufacturers[i], i) -- remove frame when you do this
     	end
     end
 
