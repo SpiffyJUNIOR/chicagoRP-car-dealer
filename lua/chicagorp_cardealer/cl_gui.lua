@@ -1,7 +1,9 @@
 local OpenDealerFrame = nil
 local OpenBrowseFrame = nil
+local OpenScrollPanel = nil
 local OpenPurchaseFrame = nil
 local OpenModelPanel = nil
+local searchstring = nil
 local historytable = {} -- clearly defined structure needed (1: manufacturer scrollpos, 2: manufacturer opened, 3: browse scrollpos, 4: purchase panel car selected)
 local vehiclewheels = {}
 local manufacturermats = {}
@@ -311,6 +313,35 @@ local function StatPanel(parent, x, y, w, h)
     end
 end
 
+local function SearchBox(parent, x, y, w, h)
+    if !IsValid(parent) then return end
+
+    local searchEntry = vgui.Create("DPanel", parent)
+    searchEntry:SetSize(w, h)
+    searchEntry:SetPos(x, y)
+
+    function searchEntry:Paint(w, h)
+        surface.SetDrawColor(40, 40, 40, 200)
+        surface.DrawRect(0, 0, w, h)
+
+        if math.sin((SysTime() * 1) * 6) > 0 then
+            draw.DrawText("__", "Default", 16, 12, color_white, TEXT_ALIGN_CENTER)
+        end
+
+        return nil
+    end
+
+    function searchEntry:OnValueChanged(value)
+    	searchstring = tostring(value) -- not sure if needed but i dont want it being turned into a number value
+
+    	if IsValid(OpenScrollPanel) then
+    		OpenScrollPanel:InvalidateLayout(false)
+    	end
+    end
+
+    return searchEntry
+end
+
 local function FancyModelPanel(parent, x, y, w, h)
     if !IsValid(parent) then return end
 
@@ -603,12 +634,39 @@ local function RefreshModelPanel(vehicletbl)
 	end
 end
 
-local function HoverTooltip(parent, hoveredpanel, w, h) -- do this
+local function HoverTooltip(parent, hoveredpanel, w, h)
+	if !IsValid(parent) or !IsValid(hoveredpanel) then return end
+
+	local hoverX, hoverY = hoveredpanel:GetPos()
+	local hoverW, hoverH = hoveredpanel:GetSize()
 	local tooltip = vgui.Create("DPanel")
-	tooltip:SetSize(290, 50)
-	expandto
+	-- tooltip:SetSize(290, 50)
+	tooltip:SetPos(hoverX * (0.5) - 290 * 0.5, hoverY - hoverH - 50)
+    tooltip:SizeTo(w, h, 0.5, 0, -1)
 
+	function tooltip:Paint(w, h)
+		local country = chicagoRPCarDealer.GetCountryCode(self.country)
 
+        draw.RoundedBox(2, 0, 0, w, h, graycolor)
+        draw.DrawText(self:GetText(), "Default", 20, 0, color_white, TEXT_ALIGN_LEFT)
+        surface.SetMaterial(countrymats[country])
+        surface.DrawTexturedRectRotated(64, 6, 32, 32, 0)
+
+        return nil
+    end
+
+    function tooltip:OnRemove()
+    	if IsValid(self) then
+    		tooltip:SizeTo(0, 0, 0.5, 0, -1)
+    	end
+    end
+
+    function tooltip:SetCountry(str)
+    	self.country = str
+    end
+
+    return tooltip
+end
 
 function UIFuncs.BrowseUI(manufacturer, manuindex)
     local scrW = ScrW()
@@ -665,34 +723,41 @@ function UIFuncs.BrowseUI(manufacturer, manuindex)
 
 	local scrollPanel = HorizontalScrollPanel(motherFrame, 20, 900, 1890, 150)
 
-	for i = 1, #manufacturer do
-		local vehicleButton = VehicleButton(scrollPanel, manufacturer[i], 150, 120)
+	function scrollPanel:PerformLayout(w, h)
+		for i = 1, #manufacturer do
+			local vehicleButton = VehicleButton(scrollPanel, manufacturer[i], 150, 120)
 
-		function vehicleButton:OnCursorEntered()
-			self.toolTip = HoverTooltip(motherFrame, self, 290, 50)
+			function vehicleButton:OnCursorEntered()
+				local tooltip = HoverTooltip(motherFrame, self, 290, 50)
 
-			self.toolTip:SetText(manufacturer[i].PrintName)
-			self.toolTip:SetCountry(manufacturer[i].Country)
+				tooltip:SetText(manufacturer[i].PrintName)
+				tooltip:SetCountry(manufacturer[i].Country)
 
-			timer.Simple(1.5, function()
-				if IsValid(self) and self:IsHovered() then
-					RefreshModelPanel(manufacturer[i])
-				end
-			end)
-		end
+				self.toolTip = tooltip
 
-		function vehicleButton:OnCursorExited()
-			if IsValid(self.toolTip) then
-				self.toolTip:Remove()
+				timer.Simple(1.5, function()
+					if IsValid(self) and self:IsHovered() then
+						RefreshModelPanel(manufacturer[i])
+					end
+				end)
 			end
-		end
 
-		function vehicleButton:DoClick()
-			PurchaseUI(manufacturer[i])
+			function vehicleButton:OnCursorExited()
+				if IsValid(self.toolTip) then
+					self.toolTip:Remove()
+				end
+			end
+
+			function vehicleButton:DoClick()
+				PurchaseUI(manufacturer[i])
+			end
 		end
 	end
 
+	scrollPanel:InvalidateLayout(true)
+
 	OpenBrowseFrame = motherFrame
+	OpenScrollPanel = scrollPanel
 end
 
 local function ManufacturerButton(parent, tbl, w, h)
@@ -790,7 +855,7 @@ end
 
 -- to-do:
 -- n/a just code
--- hovered car buttons
+-- search function
 
 -- calc stats somehow
 -- upgrade calc needs to be serverside i think (apply upgrades temporarily and then reset to original stats on exit)
