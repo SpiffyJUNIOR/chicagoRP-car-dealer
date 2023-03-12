@@ -2,6 +2,7 @@ local OpenDealerFrame = nil
 local OpenBrowseFrame = nil
 local OpenScrollPanel = nil
 local OpenPurchaseFrame = nil
+local OpenComboBox = nil
 local OpenModelPanel = nil
 local searchstring = nil
 local historytable = {} -- clearly defined structure needed (1: manufacturer scrollpos, 2: manufacturer opened, 3: browse scrollpos, 4: purchase panel car selected)
@@ -9,9 +10,12 @@ local vehiclewheels = {}
 local manufacturermats = {}
 local countrymats = {}
 local cubemapmats = {}
+local paintmats = {}
 local lerpStart = 0
 local lerpTime = 0
 local client = LocalPlayer()
+local gradient1 = Color(230, 45, 40, 150)
+local gradient2 = Color(245, 135, 70, 150)
 local graycolor = Color(20, 20, 20, 200)
 local defaultCamPos = Vector(50, 50, 50)
 local defaultCamAng = Angle(0, 0, 40)
@@ -99,6 +103,19 @@ local function CenterElement(mainW, mainH, elementW, elementH)
 
 	return centerX, centerY
 end
+
+local function CenterX(mainW, elementW)
+	local centerX = mainW * (0.5) - elementW * 0.5
+
+	return centerX
+end
+
+local function CenterY(mainH, elementH)
+	local centerY = mainH * (0.5) - elementH * 0.5
+
+	return centerY
+end
+
 
 local function OpenDealerUI()
 	UIFuncs.DealerUI()
@@ -454,6 +471,38 @@ local function FancyModelPanel(parent, x, y, w, h)
     return modelPanel
 end
 
+local function IconModelPanel(parent, x, y, w, h)
+    if !IsValid(parent) then return end
+
+    local parentPanel = vgui.Create("DPanel", parent)
+    parentPanel:SetSize(w, h)
+    parentPanel:SetPos(x, y)
+
+    parentPanel.Paint = nil
+
+    local modelPanel = vgui.Create("DModelPanel", parentPanel)
+    modelPanel:SetSize(w, h)
+    modelPanel:SetPos(x, y)
+    -- modelPanel:SetAmbientLight(color_white) -- main light up top (typically slightly yellow), fill light below camera (very faint pale blue), rim light to the left (urban color), rimlight to the right (white)
+    -- modelPanel:SetDirectionalLight(BOX_TOP, slightyellowcolor)
+    -- modelPanel:SetDirectionalLight(BOX_FRONT, slightbluecolor)
+    -- modelPanel:SetDirectionalLight(BOX_LEFT, lightcolor)
+
+    function modelPanel:LayoutEntity(ent) return end -- how do we make cam movement smoothened?
+
+    function modelPanel:SetMats(tbl)
+    	self.Entity:SetSubMaterial(0, tbl.MaterialPath)
+
+    	if !isempty(tbl.MaterialPath2) then
+    		self.Entity:SetSubMaterial(1, tbl.MaterialPath2)
+    	else
+    		self.Entity:SetSubMaterial(1, "transparentmat")
+    	end
+    end
+
+    return modelPanel
+end
+
 local function PurchaseButtonFrame(parent, w, h)
 	if !IsValid(parent) then return end
 
@@ -539,6 +588,15 @@ local function ColorPicker(parent, x, y, w, h, vehicletbl)
 
 	function huePicker:OnUserChanged(col)
 	    colorLabel:UpdateColors(col)
+
+	    if IsValid(OpenComboBox) then
+			for i = 1, #OpenComboBox:ChildCount() do
+	            local option = OpenComboBox.Menu:GetChild(i)
+	            local modelPanel = option:GetChild(1)
+
+	            modelPanel.Entity:SetColor(col)
+	        end
+	    end
 	end
 
 	return frame
@@ -553,10 +611,160 @@ local function ColorPickerButton(parent, x, y, w, h)
 
     function button:Paint(w, h)
     	chicagoRP.DrawOutlinedRoundedBox(4, 0, 0, w, h, graycolor, color_white, 1)
-        -- surface.SetMaterial(iconhere)
-        -- surface.DrawTexturedRectRotated(128, 128, 128, 128, 0)
+        surface.SetMaterial(iconhere)
+        surface.DrawTexturedRectRotated(128, 128, 128, 128, 0)
         DisableClipping(true)
         draw.DrawText(self:GetText(), "Default", 0, h + 20, color_white, TEXT_ALIGN_CENTER)
+
+        return nil
+    end
+
+    return button
+end
+
+local function PaintPicker(parent, x, y, w, h, vehicletbl)
+	if !IsValid(parent) or !IsValid(OpenModelPanel) or !IsValid(OpenModelPanel.Entity) then return end
+
+	local currentcolor = OpenModelPanel.Entity:GetColor()
+
+	local comboBox = vgui.Create("DComboBox")
+	comboBox:SetPos(x, y)
+	comboBox:SetSize(w, h)
+	comboBox:SetText("PaintPicker")
+
+	for i = 1, #vehicletbl.PaintMaterials do
+		comboBox:AddChoice(vehicletbl.PaintMaterials[i].PrintName, vehicletbl.PaintMaterials[i].Index)
+	end
+
+	function comboBox.DropButton:Paint(w, h)
+    	chicagoRP.DrawOutlinedRoundedBox(4, 0, 0, w, h, graycolor, color_white, 1)
+        draw.DrawText(self:GetText(), "Default", 0, 0, color_white, TEXT_ALIGN_LEFT)
+
+		-- return nil
+	end
+
+	function comboBox:OnMenuOpened()
+		for i = 1, #self:ChildCount() do
+            local option = self.Menu:GetChild(i)
+
+            local optionW = select(1, option:GetSize())
+            local centerY = CenterY(optionW, 32)
+
+            function option:Paint(w, h)
+            	-- chicagoRP.DrawOutlinedRoundedBox(4, 4, 4, 32, 32, color_transparent, color_white, 4)
+            	if self:IsHovered() then
+            		draw.RoundedBox(2, 0, 0, w, h, graycolor)
+            	else
+            		draw.RoundedBox(2, 0, 0, w, h, color_black)
+            	end
+            	draw.DrawText(self:GetText(), "chicagoRP_NPCShop", 4, 4, whitecolor, TEXT_ALIGN_LEFT)
+            	chicagoRP.DrawRoundedOutlinedGradientBox(4, 4, centerY, 32, 32, gradient1, gradient2, 4)
+                
+                return nil
+            end
+
+            option.oPerformLayout = opt.PerformLayout
+            function option:PerformLayout(w, h)
+                self:oPerformLayout(w, h)
+                self:SetSize(w, 40)
+                self:SetTextInset(0, 0)
+            end
+
+            local iconPanel = IconModelPanel(option, 4, centerY, 32, 32)
+            -- iconPanel:SetModel(insertmodelhere)
+            iconPanel.Entity:SetMats(vehicletbl.PaintMaterials)
+            iconPanel.Entity:SetColor(currentcolor)
+        end
+    end
+
+	function comboBox:OnSelect(_, _, data)
+		if IsValid(OpenModelPanel) and IsValid(OpenModelPanel.Entity) then
+			OpenModelPanel.Entity:SetSkin(data)
+		end
+	end
+
+	OpenComboBox = comboBox
+
+	return comboBox
+end
+
+local function PurchaseButton(parent, x, y, w, h)
+	if !IsValid(parent) then return end
+
+    local button = vgui.Create("DButton", parent)
+    button:SetSize(w, h)
+    button:SetText("Purchase")
+
+    function button:Paint(w, h)
+    	chicagoRP.DrawOutlinedRoundedBox(4, 0, 0, w, h, graycolor, color_white, 1)
+        surface.SetMaterial(purchaseicon) -- purchaseicon
+        surface.DrawTexturedRectRotated(128, 128, 128, 128, 0)
+        draw.DrawText(self:GetText(), "Default", 0, h + 20, color_white, TEXT_ALIGN_LEFT)
+
+        return nil
+    end
+
+    return button
+end
+
+local function TestDriveConfirm(parent, x, y, w, h)
+	if !IsValid(parent) then return end
+
+    local scrW = ScrW()
+    local scrH = ScrH()
+    local parentPanel = vgui.Create("DPanel", parent)
+    parentPanel:SetPos(x, y)
+    parentPanel:SetSize(w, h)
+
+    parentPanel:SizeTo(w, h, 1, 0, -1)
+
+    function parentPanel:OnFocusChanged(bool)
+    	if !bool then
+    		self:Remove()
+    	end
+    end
+
+    local label = vgui.Create("DLabel", parent)
+    label:SetPos(x, y)
+    label:SetSize(w, h)
+    label:SetText("This will start a 30 second test drive that will close the UI, are you sure?")
+    label:SetWrap(true)
+    label:SetAutoStretchVertical(true)
+
+    label.Think = nil
+
+    local button = vgui.Create("DButton", parentPanel)
+    button:SetSize(w, h)
+    button:SetText("Confirm?")
+
+    function button:Paint(w, h)
+    	DisableClipping(true)
+    	surface.SetDrawColor(40, 40, 40, 100)
+    	surface.DrawRect(0, 0, scrW, scrH)
+    	DisableClipping(false)
+
+    	chicagoRP.DrawOutlinedRoundedBox(4, 0, 0, w, h, graycolor, color_white, 1)
+        draw.DrawText(self:GetText(), "Default", 0, 0, color_white, TEXT_ALIGN_LEFT)
+        DisableClipping(true)
+
+        return nil
+    end
+
+    return button
+end
+
+local function TestDriveButton(parent, x, y, w, h)
+	if !IsValid(parent) then return end
+
+    local button = vgui.Create("DButton", parent)
+    button:SetSize(w, h)
+    button:SetText("Test Drive")
+
+    function button:Paint(w, h)
+    	chicagoRP.DrawOutlinedRoundedBox(4, 0, 0, w, h, graycolor, color_white, 1)
+        surface.SetMaterial(purchaseicon) -- purchaseicon
+        surface.DrawTexturedRectRotated(128, 128, 128, 128, 0)
+        draw.DrawText(self:GetText(), "Default", 0, h + 20, color_white, TEXT_ALIGN_LEFT)
 
         return nil
     end
@@ -610,20 +818,33 @@ local function PurchaseUI(vehicletbl)
     end
 
 	local centerX, centerY = CenterElement(scrW, scrH, 1900, 835)
-
     local modelPanel = FancyModelPanel(motherFrame, centerX, centerY, 1900, 835)
     local buttonPanel = PurchaseButtonFrame(motherFrame, 700, 400)
-    local colorButton = ColorPickerButton(buttonPanel, 20, 40, 128, 128, vehicletbl)
-    local paintButton = nil
-    local purchaseButton = nil
-    local testDriveButton = nil
 
-    local pickerX, pickerY = select(1, colorButton:GetPos()), select(2, buttonPanel:GetPos())
+    local colorButton = ColorPickerButton(buttonPanel, 20, 40, 128, 128, vehicletbl)
+    local paintButton = PaintPicker(buttonPanel, 200, 40, 96, 40, vehicletbl)
+
+    local parentW, parentH = buttonPanel:GetSize()
+	local purcX, purcY = CenterElement(parentW, parentH, 320, 160)
+
+    local purchaseButton = PurchaseButton(buttonPanel, purcX, purcY, 320, 160)
+    local testDriveButton = TestDriveButton(buttonPanel, 400, 200, 80, 60)
+    local priceDisplay = nil
+
     local OpenColorPicker = nil
+    local colorPickerX, colorPickerY = select(1, colorButton:GetPos()), select(2, buttonPanel:GetPos())
+
+    local testDriveW, testDriveH = testDriveButton:GetSize()
+    local testDriveX, testDriveY = testDriveButton:GetPos()
+
+    function testDriveButton:DoClick()
+    	local confirmBox = TestDriveConfirm(motherFrame, testDriveX, testDriveY + testDriveH + 4, testDriveW, testDriveH + (math.Round(testDriveH * 0.5)))
+    	confirmBox:RequestFocus()
+    end
 
     function colorButton:DoClick()
     	if IsValid(OpenColorPicker) then OpenColorPicker:Remove() return end
-    	local colorPicker = ColorPicker(motherFrame, pickerX, pickerY - 320, 200, 300, vehicletbl)
+    	local colorPicker = ColorPicker(motherFrame, colorPickerX, colorPickerY - 320, 200, 300, vehicletbl)
 
     	OpenColorPicker = colorPicker
     end
