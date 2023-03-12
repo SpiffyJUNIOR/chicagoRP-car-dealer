@@ -12,9 +12,11 @@ local cubemapmats = {}
 local lerpStart = 0
 local lerpTime = 0
 local client = LocalPlayer()
+local graycolor = Color(20, 20, 20, 200)
 local defaultCamPos = Vector(50, 50, 50)
 local defaultCamAng = Angle(0, 0, 40)
 local rightangle = Angle(0, 90, 0)
+local fallbackcolortbl = {255, 255, 255, 255}
 
 local UIFuncs = UIFuncs or {}
 
@@ -51,6 +53,10 @@ local simfphyswheelbools = {
 	[5] = false,
 	[6] = true,
 }
+
+function isempty(s)
+    return s == nil or s == ""
+end
 
 local function ismaterial(mat)
     return mat != nil and type(mat) == "material"
@@ -448,6 +454,116 @@ local function FancyModelPanel(parent, x, y, w, h)
     return modelPanel
 end
 
+local function PurchaseButtonFrame(parent, w, h)
+	if !IsValid(parent) then return end
+
+	local scrW = ScrW()
+	local scrH = ScrH()
+	local centerX = select(1, CenterElement(scrW, scrH, 700, 400))
+
+    local parentPanel = vgui.Create("DPanel", parent)
+    parentPanel:SetSize(w, h)
+    parentPanel:SetPos(centerX, scrH - 400)
+
+    function parentPanel:Paint(w, h)
+    	chicagoRP.DrawOutlinedRoundedBox(4, 0, 0, w, h, graycolor, color_black, 2)
+
+    	return nil
+    end
+
+    return parentPanel
+end
+
+local function ColorPicker(parent, x, y, w, h, vehicletbl)
+	if !IsValid(parent) then return end
+
+	local defaultcolortbl = vehicletbl.DefaultColor or fallbackcolortbl
+	local defaultcolor = Color(defcol[1], defcol[2], defcol[3], defcol[4])
+
+	local frame = vgui.Create("DPanel")
+	frame:SetSize(0, 0)
+	frame:SetPos(x, y)
+
+	frame:SizeTo(w, h, 0.5, 0, -1)
+	chicagoRP.PanelFadeIn(frame, 0.5)
+
+	function frame:OnRemove()
+		self:SizeTo(0, 0, 0.5, 0, -1)
+		chicagoRP.PanelFadeOut(self, 0.5)
+	end
+
+	local colorPicker = vgui.Create("DRGBPicker", frame)
+	colorPicker:SetSize(40, h - 20)
+	colorPicker:Dock(LEFT)
+	colorPicker:SetPalette(true)
+	colorPicker:SetAlphaBar(true)
+	colorPicker:SetWangs(true)
+	colorPicker:SetColor(defaultcolor)
+
+	local huePicker = vgui.Create("DColorCube", frame)
+	huePicker:Dock(RIGHT)
+	huePicker:SetSize(w - 60, h - 20)
+
+	local labelX, labelY = huePicker:GetPos()
+
+	local colorLabel = vgui.Create("DLabel", frame)
+	colorLabel:SetPos(labelX, labelY + h - 20)
+	colorLabel:SetText("Color(" .. tostring(defaultcolor.r) .. " ," .. tostring(defaultcolor.g) .. " ," .. tostring(defaultcolor.b) .. " ," .. tostring(defaultcolor.a) .. ")")
+
+	colorLabel:SizeToContents()
+	colorLabel.Think = nil
+
+	function colorLabel:Paint(w, h)
+		draw.DrawText(self:GetText(), "Default", 0, 0, color_white, TEXT_ALIGN_LEFT)
+
+		return nil
+	end
+
+	function colorLabel:UpdateColors(col)
+	    self:SetText("Color(" .. col.r .. ", " .. col.g .. ", " .. col.b .. ")")
+
+	    if IsValid(OpenModelPanel) and IsValid(OpenModelPanel.Entity) then
+	    	OpenModelPanel.Entity:SetColor(col)
+	    end
+	end
+
+	function colorPicker:OnChange(col)
+	    local h = ColorToHSV(col)
+	    local s, v = select(2, ColorToHSV(huePicker:GetRGB()))
+
+	    col = HSVToColor(h, s, v)
+	    huePicker:SetColor(col)
+
+	    colorLabel:UpdateColors(col)
+	end
+
+	function huePicker:OnUserChanged(col)
+	    colorLabel:UpdateColors(col)
+	end
+
+	return frame
+end
+
+local function ColorPickerButton(parent, x, y, w, h)
+	if !IsValid(parent) then return end
+
+    local button = vgui.Create("DButton", parent)
+    button:SetSize(w, h)
+    button:SetText("ColorPicker")
+
+    function button:Paint(w, h)
+    	chicagoRP.DrawOutlinedRoundedBox(4, 0, 0, w, h, graycolor, color_white, 1)
+        -- surface.SetMaterial(iconhere)
+        -- surface.DrawTexturedRectRotated(128, 128, 128, 128, 0)
+        DisableClipping(true)
+        draw.DrawText(self:GetText(), "Default", 0, h + 20, color_white, TEXT_ALIGN_CENTER)
+
+        return nil
+    end
+
+    return button
+end
+
 local function PurchaseUI(vehicletbl)
     local scrW = ScrW()
     local scrH = ScrH()
@@ -493,12 +609,24 @@ local function PurchaseUI(vehicletbl)
         surface.DrawRect(0, 0, w, h)
     end
 
-    local modelPanel = nil
-    local buttonPanel = nil
-    local colorButton = nil
-    local colorPicker = nil
+	local centerX, centerY = CenterElement(scrW, scrH, 1900, 835)
+
+    local modelPanel = FancyModelPanel(motherFrame, centerX, centerY, 1900, 835)
+    local buttonPanel = PurchaseButtonFrame(motherFrame, 700, 400)
+    local colorButton = ColorPickerButton(buttonPanel, 20, 40, 128, 128, vehicletbl)
+    local paintButton = nil
     local purchaseButton = nil
     local testDriveButton = nil
+
+    local pickerX, pickerY = select(1, colorButton:GetPos()), select(2, buttonPanel:GetPos())
+    local OpenColorPicker = nil
+
+    function colorButton:DoClick()
+    	if IsValid(OpenColorPicker) then OpenColorPicker:Remove() return end
+    	local colorPicker = ColorPicker(motherFrame, pickerX, pickerY - 320, 200, 300, vehicletbl)
+
+    	OpenColorPicker = colorPicker
+    end
 
     OpenPurchaseFrame = motherFrame
 end
@@ -725,6 +853,12 @@ function UIFuncs.BrowseUI(manufacturer, manuindex)
 
 	function scrollPanel:PerformLayout(w, h)
 		for i = 1, #manufacturer do
+			if !isempty(searchstring) then
+				local foundtext = select(3, string.find(string.lower(manufacturer[i].PrintName), searchstring, 1, false))
+
+				if isempty(foundtext) then continue end
+			end
+
 			local vehicleButton = VehicleButton(scrollPanel, manufacturer[i], 150, 120)
 
 			function vehicleButton:OnCursorEntered()
@@ -855,8 +989,14 @@ end
 
 -- to-do:
 -- n/a just code
--- search function
+-- purchase UI
+-- historytable
+-- serverside code
+-- mechanic UI
+-- SQL shit
 
+-- color picker icon (circle with paintbrush or outlined circle in bottom right corner)
+-- dtextentry for entering specific values into color picker?
 -- calc stats somehow
 -- upgrade calc needs to be serverside i think (apply upgrades temporarily and then reset to original stats on exit)
 -- we need to find a way to make this unexploitable (reset on exiting vehicle, reset on closing UI, create setupmove hook to reset stats once player position has changed a fair bit then remove hook)
