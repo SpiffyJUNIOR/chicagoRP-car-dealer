@@ -5,7 +5,7 @@ local OpenPurchaseFrame = nil
 local OpenComboBox = nil
 local OpenModelPanel = nil
 local searchstring = nil
-local historytable = {} -- clearly defined structure needed (1: manufacturer scrollpos, 2: manufacturer opened, 3: browse scrollpos, 4: purchase panel car selected)
+local historytable = {} -- clearly defined structure needed (1: manufacturer scrollpos, 2: manufacturer opened, 3: browse scrollpos, 4: purchase panel's selected car)
 local vehiclewheels = {}
 local manufacturermats = {}
 local countrymats = {}
@@ -66,6 +66,11 @@ local function ismaterial(mat)
     return mat != nil and type(mat) == "material"
 end
 
+local function attachCurrency(str)
+    local config = GAMEMODE.Config
+    return config.currencyLeft and config.currency .. str or str .. config.currency
+end
+
 local function ManufacturerMaterials()
 	for i = 1, #chicagoRPCarDealer.Manufacturers do
 		if ismaterial(manufacturermats[i]) then continue end
@@ -116,13 +121,16 @@ local function CenterY(mainH, elementH)
 	return centerY
 end
 
-
 local function OpenDealerUI()
 	UIFuncs.DealerUI()
 end
 
-local function OpenBrowseUI()
-	UIFuncs.BrowseUI()
+local function OpenBrowseUI(tbl, index)
+	UIFuncs.BrowseUI(tbl, index)
+end
+
+local function OpenPurchaseUI(manufacturertbl, manuindex, vehicletbl)
+	UIFuncs.PurchaseUI(manufacturertbl, manuindex, vehicletbl)
 end
 
 local function SetStaticCubemap(ent)
@@ -165,6 +173,12 @@ local function GCCSEnts(tbl)
 		tbl[i]:Remove()
 	end
 end
+
+net.Receive("chicagoRP_cardealer_endtestdrive", function(len)
+	if IsValid(OpenDealerFrame) or IsValid(OpenBrowseFrame) or IsValid(OpenPurchaseFrame) then return end
+
+	OpenPurchaseUI(chicagoRPCarDealer.Manufacturers[historytable[2]], historytable[2], chicagoRPCarDealer.Vehicles_HashTable[historytable[4]])
+end)
 
 local function SetCameraPos(pos)
 	if IsValid(OpenModelPanel) then
@@ -717,6 +731,7 @@ local function TestDriveConfirm(parent, x, y, w, h)
     parentPanel:SetSize(w, h)
 
     parentPanel:SizeTo(w, h, 1, 0, -1)
+    parentPanel:RequestFocus()
 
     function parentPanel:OnFocusChanged(bool)
     	if !bool then
@@ -772,7 +787,28 @@ local function TestDriveButton(parent, x, y, w, h)
     return button
 end
 
-local function PurchaseUI(vehicletbl)
+local function PriceLabel(parent, x, y, w, h)
+	if !IsValid(parent) then return end
+
+	local label = vgui.Create("DLabel", parent)
+	label:SetPos(x, y)
+	label:SetSize(w, h)
+
+	label:SetText("1")
+	label.Think = nil
+
+    function label:Paint(w, h)
+        draw.RoundedBox(2, 0, 0, w, h, graycolor)
+        draw.DrawText(attachCurrency(self:GetText()), "Default", 0, 0, color_white, TEXT_ALIGN_LEFT)
+
+        return nil
+    end
+
+    return label
+end
+
+function UIFuncs.PurchaseUI(manufacturertbl, manuindex, vehicletbl)
+	local vehicles_hashtable = chicagoRPCarDealer.Vehicles_HashTable
     local scrW = ScrW()
     local scrH = ScrH()
     local motherFrame = vgui.Create("DFrame")
@@ -817,6 +853,12 @@ local function PurchaseUI(vehicletbl)
         surface.DrawRect(0, 0, w, h)
     end
 
+    if !isempty(historytable[4]) then vehicletbl = vehicles_hashtable[historytable[4]] end
+
+	local backButton = BackButton(motherFrame, 0, 0, 195, 40)
+	local manufacturerPanel = ManufacturerPanel(motherFrame, manufacturertbl, 200, 0, 220, 40)
+	local moneyPanel = MoneyPanel(motherFrame, 1775, 0, 150, 40)
+
 	local centerX, centerY = CenterElement(scrW, scrH, 1900, 835)
     local modelPanel = FancyModelPanel(motherFrame, centerX, centerY, 1900, 835)
     local buttonPanel = PurchaseButtonFrame(motherFrame, 700, 400)
@@ -829,7 +871,10 @@ local function PurchaseUI(vehicletbl)
 
     local purchaseButton = PurchaseButton(buttonPanel, purcX, purcY, 320, 160)
     local testDriveButton = TestDriveButton(buttonPanel, 400, 200, 80, 60)
-    local priceDisplay = nil
+    local priceDisplay = PriceLabel(parent, x, y, w, h)
+
+    priceDisplay:SetText(tostring(vehicletbl.Price))
+    priceDisplay:SizeToContents()
 
     local OpenColorPicker = nil
     local colorPickerX, colorPickerY = select(1, colorButton:GetPos()), select(2, buttonPanel:GetPos())
@@ -837,9 +882,23 @@ local function PurchaseUI(vehicletbl)
     local testDriveW, testDriveH = testDriveButton:GetSize()
     local testDriveX, testDriveY = testDriveButton:GetPos()
 
+	local oDoClick = backButton.DoClick
+	function backButton:DoClick()
+		oDoClick()
+
+		UIFuncs.OpenBrowseUI(manufacturertbl, manuindex)
+	end
+
     function testDriveButton:DoClick()
     	local confirmBox = TestDriveConfirm(motherFrame, testDriveX, testDriveY + testDriveH + 4, testDriveW, testDriveH + (math.Round(testDriveH * 0.5)))
-    	confirmBox:RequestFocus()
+    
+    	function confirmBox:DoClick()
+    		motherFrame:Close()
+
+    		net.Start("chicagoRP_cardealer_starttestdrive")
+    		net.WriteString(vehicletbl.EntityName)
+    		net.SendToServer()
+    	end
     end
 
     function colorButton:DoClick()
@@ -849,6 +908,7 @@ local function PurchaseUI(vehicletbl)
     	OpenColorPicker = colorPicker
     end
 
+    historytable[4] = vehicletbl.EntityName
     OpenPurchaseFrame = motherFrame
 end
 
@@ -919,8 +979,6 @@ local function BackButton(parent, x, y, w, h)
 	        chicagoRP.PanelFadeOut(OpenBrowseFrame, 0.15)
 	        OpenBrowseFrame:Close()
 	    end
-
-    	UIFuncs.OpenDealerUI()
     end
 
     return button
@@ -960,7 +1018,7 @@ local function MoneyPanel(parent, x, y, w, h)
 
         if !IsValid(client) then return nil end
 
-        draw.DrawText("$" .. tostring(client:getDarkRPVar("money")), "Default", 20, 0, color_white, TEXT_ALIGN_LEFT)
+        draw.DrawText(DarkRP.formatMoney(client:getDarkRPVar("money")), "Default", 20, 0, color_white, TEXT_ALIGN_LEFT)
 
         return nil
     end
@@ -1071,6 +1129,17 @@ function UIFuncs.BrowseUI(manufacturer, manuindex)
 	local moneyPanel = MoneyPanel(motherFrame, 1775, 0, 150, 40)
 
 	local scrollPanel = HorizontalScrollPanel(motherFrame, 20, 900, 1890, 150)
+	local scrollPanelBar = scrollPanel:GetVBar()
+
+	local scrollpos = historytable[3]
+	if isnumber(scrollpos) then scrollPanelBar:AnimateTo(scrollpos, 1, 0, -1) end
+
+	local oDoClick = backButton.DoClick
+	function backButton:DoClick()
+		oDoClick()
+
+		UIFuncs.OpenDealerUI()
+	end
 
 	function scrollPanel:PerformLayout(w, h)
 		for i = 1, #manufacturer do
@@ -1104,13 +1173,17 @@ function UIFuncs.BrowseUI(manufacturer, manuindex)
 			end
 
 			function vehicleButton:DoClick()
-				PurchaseUI(manufacturer[i])
+				UIFuncs.PurchaseUI(manufacturer, i, manufacturer[i])
+
+				historytable[2] = manuindex
+				historytable[3] = scrollPanelBar:GetScroll()
 			end
 		end
 	end
 
 	scrollPanel:InvalidateLayout(true)
 
+	historytable[4] = nil
 	OpenBrowseFrame = motherFrame
 	OpenScrollPanel = scrollPanel
 end
@@ -1185,7 +1258,11 @@ function UIFuncs.DealerUI()
         surface.DrawRect(0, 0, w, h)
     end
 
+	local backButton = BackButton(motherFrame, 0, 0, 195, 40)
+	local moneyPanel = MoneyPanel(motherFrame, 1775, 0, 150, 40)
+
 	local scrollPanel = vgui.Create("DScrollPanel", motherFrame) -- Create the Scroll panel
+	local scrollPanelBar = scrollPanel:GetVBar()
 	scrollPanel:Dock(FILL)
 	scrollPanel:DockMargin(10, 150, 10, 10)
 
@@ -1194,6 +1271,9 @@ function UIFuncs.DealerUI()
 	buttonLayout:SetSpaceY(10)
 	buttonLayout:SetSpaceX(10)
 
+	local scrollpos = historytable[1]
+	if isnumber(scrollpos) then scrollPanelBar:AnimateTo(scrollpos, 1, 0, -1) end
+
     for i = 1, #manufacturers do
     	local manufacButton = ManufacturerButton(buttonLayout, manufacturers[i], 256, 256)
 
@@ -1201,18 +1281,24 @@ function UIFuncs.DealerUI()
             chicagoRP.PanelFadeOut(motherFrame, 0.15)
             motherFrame:Close()
 
+            historytable[1] = scrollPanelBar:GetScroll()
+
     		UIFuncs.BrowseUI(manufacturers[i], i) -- remove frame when you do this
     	end
     end
 
+    function backButton:DoClick()
+    	motherFrame:Close()
+    	historytable = {}
+    end
+
+    historytable = {}
     OpenDealerFrame = motherFrame
 end
 
 -- to-do:
 -- n/a just code
--- purchase UI
--- historytable
--- serverside code
+-- serverside code (purchasing car)
 -- mechanic UI
 -- SQL shit
 
