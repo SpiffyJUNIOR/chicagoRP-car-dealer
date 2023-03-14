@@ -16,7 +16,8 @@ local lerpTime = 0
 local client = LocalPlayer()
 local gradient1 = Color(230, 45, 40, 150)
 local gradient2 = Color(245, 135, 70, 150)
-local graycolor = Color(20, 20, 20, 200)
+local graycolor = Color(40, 40, 40, 200)
+local darkgraycolor = Color(20, 20, 20, 200)
 local defaultCamPos = Vector(50, 50, 50)
 local defaultCamAng = Angle(0, 0, 40)
 local rightangle = Angle(0, 90, 0)
@@ -517,25 +518,25 @@ local function IconModelPanel(parent, x, y, w, h)
     return modelPanel
 end
 
-local function PurchaseButtonFrame(parent, w, h)
-	if !IsValid(parent) then return end
+-- local function PurchaseButtonFrame(parent, w, h)
+-- 	if !IsValid(parent) then return end
 
-	local scrW = ScrW()
-	local scrH = ScrH()
-	local centerX = select(1, CenterElement(scrW, scrH, 700, 400))
+-- 	local scrW = ScrW()
+-- 	local scrH = ScrH()
+-- 	local centerX = select(1, CenterElement(scrW, scrH, 700, 400))
 
-    local parentPanel = vgui.Create("DPanel", parent)
-    parentPanel:SetSize(w, h)
-    parentPanel:SetPos(centerX, scrH - 400)
+--     local parentPanel = vgui.Create("DPanel", parent)
+--     parentPanel:SetSize(w, h)
+--     parentPanel:SetPos(centerX, scrH - 400)
 
-    function parentPanel:Paint(w, h)
-    	chicagoRP.DrawOutlinedRoundedBox(4, 0, 0, w, h, graycolor, color_black, 2)
+--     function parentPanel:Paint(w, h)
+--     	chicagoRP.DrawOutlinedRoundedBox(4, 0, 0, w, h, graycolor, color_black, 2)
 
-    	return nil
-    end
+--     	return nil
+--     end
 
-    return parentPanel
-end
+--     return parentPanel
+-- end
 
 local function ColorPicker(parent, x, y, w, h, vehicletbl)
 	if !IsValid(parent) then return end
@@ -710,13 +711,27 @@ local function PurchaseButton(parent, x, y, w, h)
     button:SetText("Purchase")
 
     function button:Paint(w, h)
-    	chicagoRP.DrawOutlinedRoundedBox(4, 0, 0, w, h, graycolor, color_white, 1)
+    	if self:GetDisabled() then
+    		chicagoRP.DrawOutlinedRoundedBox(4, 0, 0, w, h, darkgraycolor, color_white, 1)
+    	else
+    		chicagoRP.DrawOutlinedRoundedBox(4, 0, 0, w, h, graycolor, color_white, 1)
+    	end
+
         surface.SetMaterial(purchaseicon) -- purchaseicon
         surface.DrawTexturedRectRotated(128, 128, 128, 128, 0)
         draw.DrawText(self:GetText(), "Default", 0, h + 20, color_white, TEXT_ALIGN_LEFT)
 
         return nil
     end
+
+    function button:PerformLayout(w, h)
+    	if chicagoRPCarDealer.IsVehicleOwned(self.vehicle) then
+    		self:SetEnabled(false)
+    		self:SetText("Owned")
+    	end
+    end
+
+    button:InvalidateLayout(true)
 
     return button
 end
@@ -861,7 +876,7 @@ function UIFuncs.PurchaseUI(manufacturertbl, manuindex, vehicletbl)
 
 	local centerX, centerY = CenterElement(scrW, scrH, 1900, 835)
     local modelPanel = FancyModelPanel(motherFrame, centerX, centerY, 1900, 835)
-    local buttonPanel = PurchaseButtonFrame(motherFrame, 700, 400)
+    -- local buttonPanel = PurchaseButtonFrame(motherFrame, 700, 400)
 
     local colorButton = ColorPickerButton(buttonPanel, 20, 40, 128, 128, vehicletbl)
     local paintButton = PaintPicker(buttonPanel, 200, 40, 96, 40, vehicletbl)
@@ -873,6 +888,7 @@ function UIFuncs.PurchaseUI(manufacturertbl, manuindex, vehicletbl)
     local testDriveButton = TestDriveButton(buttonPanel, 400, 200, 80, 60)
     local priceDisplay = PriceLabel(parent, x, y, w, h)
 
+    purchaseButton.vehicle = vehicletbl.EntityName
     priceDisplay:SetText(tostring(vehicletbl.Price))
     priceDisplay:SizeToContents()
 
@@ -908,6 +924,16 @@ function UIFuncs.PurchaseUI(manufacturertbl, manuindex, vehicletbl)
     	OpenColorPicker = colorPicker
     end
 
+    function purchaseButton:DoClick()
+    	net.Start("chicagoRP_cardealer_purchasecar")
+		net.WriteString(vehicletbl.EntityName)
+		net.SendToServer()
+
+		notification.AddLegacy("Congratulations on your purchase of a " .. vehicletbl.PrintName .. "!", NOTIFY_GENERIC, 5)
+		surface.PlaySound("buttons/button15.wav")
+		self:InvalidateLayout(true)
+	end
+
     historytable[4] = vehicletbl.EntityName
     OpenPurchaseFrame = motherFrame
 end
@@ -926,7 +952,7 @@ local function HorizontalScrollPanel(parent, x, y, w, h)
     return scrollPanel
 end
 
-local function VehicleButton(parent, vehicletable, x, y, w, h) -- horizontally scrolling text?
+local function VehicleButton(parent, vehicletable, x, y, w, h)
 	if !IsValid(parent) or !istable(vehicletable) then return end
 
     local button = parent:Add("DButton")
@@ -1261,7 +1287,7 @@ function UIFuncs.DealerUI()
 	local backButton = BackButton(motherFrame, 0, 0, 195, 40)
 	local moneyPanel = MoneyPanel(motherFrame, 1775, 0, 150, 40)
 
-	local scrollPanel = vgui.Create("DScrollPanel", motherFrame) -- Create the Scroll panel
+	local scrollPanel = vgui.Create("DScrollPanel", motherFrame)
 	local scrollPanelBar = scrollPanel:GetVBar()
 	scrollPanel:Dock(FILL)
 	scrollPanel:DockMargin(10, 150, 10, 10)
@@ -1298,12 +1324,15 @@ end
 
 -- to-do:
 -- n/a just code
--- serverside code (purchasing car)
+-- serverside code (purchasing car, use psuedo code for SQL)
 -- mechanic UI
+-- used car dealer (table that refreshes after set period. picks 9 random cars that are used but discounted, have random colors/paint and may contain upgrades)
 -- SQL shit
 
 -- color picker icon (circle with paintbrush or outlined circle in bottom right corner)
 -- dtextentry for entering specific values into color picker?
--- calc stats somehow
+-- calc stats somehow (https://github.com/SpiffyJUNIOR/simfphys_base/blob/master/lua/simfphys/base_functions.lua#L248)
+-- multiple cars (how do we index them and tell cars of the same model apart?)
+
 -- upgrade calc needs to be serverside i think (apply upgrades temporarily and then reset to original stats on exit)
 -- we need to find a way to make this unexploitable (reset on exiting vehicle, reset on closing UI, create setupmove hook to reset stats once player position has changed a fair bit then remove hook)

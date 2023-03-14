@@ -258,11 +258,27 @@ function chicagoRPCarDealer.GetCountryCode(ctrystr) -- memory usage? whats that?
 end
 
 ---------------------------------
+-- chicagoRPCarDealer.IsVehicleOwned
+---------------------------------
+-- Desc:		Gets whether a vehicle is owned by a player or not.
+-- State:		Shared
+-- Arg One:		String/Number - Vehicle Index.
+-- Arg One:		Bool - Whether to check validity via serverside or not.
+-- Returns: 	Bool - True if owned, false if unowned.
+function chicagoRPCarDealer.IsVehicleOwned(ply, vehinp, secure) -- needs sql code :|
+	-- if string.len(ctrystr) == 2 then return ctrystr end
+	if !IsValid(ply) then return end
+	if secure == nil then secure = false end
+
+	return isowned
+end
+
+---------------------------------
 -- ENTITY:GetVehicleLightTable
 ---------------------------------
 -- Desc:		Gets a vehicle's light table.
 -- State:		Shared
--- Returns: 	Table - Vehicle's light tbale.
+-- Returns: 	Table - Vehicle's light table.
 function GetVehicleLightTable()
 	return self.LightsTable
 end

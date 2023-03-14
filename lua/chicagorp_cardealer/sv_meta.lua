@@ -1,6 +1,17 @@
 local ENTITY = FindMetaTable("Entity")
 
 ---------------------------------
+-- chicagoRPCarDealer.GiveVehicle
+---------------------------------
+-- Desc:		Gives a vehicle to a player.
+-- State:		Server
+-- Arg One:		String/Number - Vehicle Index.
+function chicagoRPCarDealer.GiveVehicle(ply, vehinp)
+	if !IsValid(ply) then return end
+	-- sql query/add shit here
+end
+
+---------------------------------
 -- ENTITY:SetVehicleOwner
 ---------------------------------
 -- Desc:		Gets a vehicle's owner.
